@@ -1,0 +1,1717 @@
+<?php
+error_reporting(E_ERROR);
+session_start();
+
+// Get the relative web path from document root to our application
+$scriptPath = $_SERVER['SCRIPT_NAME'];
+$webRoot = dirname(dirname($scriptPath)); // Go up two levels from the script location
+if ($webRoot == '/') $webRoot = '';
+$webRoot = rtrim($webRoot, '/');
+
+// Define base paths
+define('BASE_PATH', dirname(__DIR__));
+define('CONFIG_PATH', BASE_PATH . DIRECTORY_SEPARATOR . 'conf');
+define('LIB_PATH', BASE_PATH . DIRECTORY_SEPARATOR . 'lib');
+define('LOG_PATH', BASE_PATH . DIRECTORY_SEPARATOR . 'log');
+
+$configFilepath = CONFIG_PATH . DIRECTORY_SEPARATOR;
+
+if (!file_exists($configFilepath."conf.php")) {
+    @copy($configFilepath."conf.sample.php", $configFilepath."conf.php");   // Defaults
+    die(header("Location: quickstart.php"));
+}
+
+// Load profiles through the centralized profile loader
+require_once(__DIR__.DIRECTORY_SEPARATOR."profile_loader.php");
+
+$TITLE = "CHIM";
+
+ob_start();
+
+include(__DIR__.DIRECTORY_SEPARATOR."tmpl/head.html");
+?>
+<link rel="stylesheet" href="<?php echo $webRoot; ?>/ui/css/main.css">
+<style>
+    /* Override main container styles */
+    main {
+        padding-top: 160px; /* Space for navbar */
+        padding-bottom: 40px; /* Reduced space for footer */
+        padding-left: 10px;
+    }
+    
+    /* Override footer styles */
+    footer {
+        position: fixed;
+        bottom: 0;
+        width: 100%;
+        height: 20px; /* Reduced footer height */
+        background: #031633;
+        z-index: 100
+    }
+
+    /* Additional index-specific styles */
+    .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+
+    /* Table Container Styles */
+    .table-container {
+        background-color: #2a2a2a;
+        border-radius: 5px;
+        padding: 15px;
+        margin-bottom: 20px;
+        overflow-x: auto;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Table Styles */
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        background-color: #3a3a3a;
+        margin-bottom: 20px;
+        font-size: small;
+    }
+
+    /* Header Cells */
+    th {
+        background-color: #1a1a1a;
+        color: #fff;
+        font-weight: bold;
+        padding: 12px;
+        text-align: left;
+        border-bottom: 2px solid #444;
+    }
+
+    /* Data Cells */
+    td {
+        padding: 10px;
+        text-align: left;
+        border-bottom: 1px solid #444;
+        color: #f8f9fa;
+    }
+
+    /* Row Alternating Colors */
+    tr:nth-child(even) {
+        background-color:rgb(77, 77, 77);
+    }
+
+    /* Button Cell Alignment */
+    td:has(button), td:has(.btn-base) {
+        text-align: center;
+    }
+
+    /* Responsive Table */
+    @media (max-width: 768px) {
+        .table-container {
+            margin: 10px -15px;
+            border-radius: 0;
+        }
+        
+        table {
+            font-size: smaller;
+        }
+        
+        th, td {
+            padding: 8px;
+        }
+    }
+</style>
+<?php
+
+$hide_navbar = ((isset($_GET["navbar"])) && ($_GET["navbar"] == "hidden"));
+if (!$hide_navbar) { 
+    include(__DIR__.DIRECTORY_SEPARATOR."tmpl/navbar.php");
+}
+
+// Remove redundant profile loading code here and go straight to lib loading
+require_once(LIB_PATH .DIRECTORY_SEPARATOR."logger.php");
+require_once(LIB_PATH .DIRECTORY_SEPARATOR."{$GLOBALS["DBDRIVER"]}.class.php");
+require_once(LIB_PATH .DIRECTORY_SEPARATOR."misc_ui_functions.php");
+require_once(LIB_PATH .DIRECTORY_SEPARATOR."chat_helper_functions.php");
+
+$db = new sql();
+
+/* Check for database updates only in index.php with no parms*/
+if (sizeof($_GET)==0) {
+    require_once(__DIR__."/../debug/db_updates.php");
+    require_once(__DIR__."/../debug/npc_removal.php");
+
+    // manage CHIM log files 
+    $s_path = LOG_PATH . DIRECTORY_SEPARATOR ;
+    $s_files = glob($s_path . '*.txt');
+    foreach ($s_files as $file) {
+        if (is_file($file)) {
+            unlink($file);
+        }
+    }    
+    $s_files = glob($s_path . '*.log');
+    foreach ($s_files as $file) {
+        if (is_file($file)) {
+            Logger::deleteLogIfTooLarge($file);
+        }
+    }    
+    
+    // Initialize automatic backup system now that database is ready
+    if (function_exists('deferredAutomaticBackupInit')) {
+        deferredAutomaticBackupInit();
+    }
+}
+/* END of check database for updates */
+
+/* Actions */
+if (isset($_GET["clean"])) {
+    $db->delete("responselog", "sent=1");
+}
+if (isset($_GET["reset"])) {
+    $db->delete("eventlog", "true");
+    header("Location: index.php");
+}
+
+if (isset($_GET["sendclean"])) {
+    $db->update("responselog", "sent=0", "sent=1 ");
+}
+
+if (isset($_GET["cleanlog"])) {
+    $db->delete("log", "true");
+}
+
+if (isset($_GET["togglemodel"])) {
+    require_once(__DIR__ .DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR."lib".DIRECTORY_SEPARATOR."model_dynmodel.php");
+    $newModel=DMtoggleModel();
+    while (@ob_end_clean());
+    header("Location: index.php");
+    die();
+}
+
+
+if (isset($_GET["export"]) && ($_GET["export"] == "log")) {
+    while (@ob_end_clean());
+
+    header("Content-Type: text/csv");
+    header("Content-Disposition: attachment; filename=log.csv");
+
+    $data = $db->fetchAll("select response,url,prompt,rowid from log order by rowid desc");
+    $n = 0;
+    foreach ($data as $row) {
+        if ($n == 0) {
+            echo "'" . implode("'\t'", array_keys($row)) . "'\n";
+            $n++;
+        }
+        $rowCleaned = [];
+        foreach ($row as $cellname => $cell) {
+            if ($cellname == "prompt")
+                $cell = base64_encode(br2nl($cell));
+            $rowCleaned[] = strtr($cell, array("\n" => " ", "\r" => " ", "'" => "\""));
+        }
+
+        echo "'" . implode("'\t'", ($rowCleaned)) . "'\n";
+    }
+    die();
+}
+
+if (isset($_GET["export"]) && ($_GET["export"] == "diary")) {
+    while (@ob_end_clean());
+
+    header("Content-Type: text/csv");
+    header("Content-Disposition: attachment; filename=diarylog.txt");
+
+    $data = $db->fetchAll("select topic,content from diarylogv2 order by rowid desc");
+    $n = 1;
+    foreach ($data as $row) {
+        if ($n == 0) {
+            echo "'" . implode("'\t'", array_keys($row)) . "'\n";
+            $n++;
+        }
+        $rowCleaned = [];
+        foreach ($row as $cellname => $cell) {
+            if ($cellname == "prompt")
+                $cell = base64_encode(br2nl($cell));
+            $rowCleaned[] = strtr($cell, array("\n" => " ", "\r" => " ", "'" => "\""));
+        }
+
+        echo "'" . implode("'\t'", ($rowCleaned)) . "'\n";
+    }
+    die();
+}
+
+if (isset($_GET["reinstall"])) {
+    require_once("cmd/install-db.php");
+    header("Location: index.php?table=response");
+}
+
+if (isset($_POST["command"])) {
+    $db->insert(
+        'responselog',
+        array(
+            'localts' => time(),
+            'sent' => 0,
+            'text' => $_POST["command"] . "@" . $_POST["parameter"],
+            'actor' => "{$GLOBALS["HERIKA_NAME"]}",
+            'action' => 'command'
+        )
+    );
+    header("Location: index.php?table=response");
+}
+
+if (isset($_POST["animation"])) {
+    $db->insert(
+        'responselog',
+        array(
+            'localts' => time(),
+            'sent' => 0,
+            'text' => trim($_POST["animation"]),
+            'actor' => "{$GLOBALS["HERIKA_NAME"]}",
+            'action' => 'animation'
+        )
+    );
+    header("Location: index.php?table=response");
+}
+
+?>
+
+<!-- navbar -->
+<?php
+?>
+<!--<a href='index.php?openai=true'  >OpenAI API Usage</a> -->
+
+<div class="clearfix"></div>
+
+<div class="container-fluid">
+
+    <!-- auto info -->
+    <?php
+    if (isset($_GET["autorefresh"])) {
+        echo '<script>document.body.classList.add("auto-refresh");</script>';
+    ?>
+    <p class="my-2">
+        <small class='text-body-secondary fs-5'>Autorefreshes every 5 secs</small>
+    </p>
+    <?php
+    }
+
+    /* Actions */
+    if (file_exists("index_custom.php")) include_once("index_custom.php"); // custom actions extension
+    
+    if (isset($_GET["table"]) && ($_GET["table"] == "responselog")) {
+        $results = $db->fetchAll("select  A.*,ROWID FROM responselog a order by ROWID asc");
+        echo "<h1 class='my-2'>Response Queue</h1>";
+        print_array_as_table($results);
+    }
+
+    if (isset($_GET["table"]) && ($_GET["table"] == "eventlog")) {
+    
+        // Include game timestamp utilities if not already included
+        require_once(dirname(__DIR__).DIRECTORY_SEPARATOR."lib".DIRECTORY_SEPARATOR."utils_game_timestamp.php");
+    
+    
+        // 1) Handle the "Delete Last X" logic
+        if (isset($_GET['delete_last'])) {
+            // Sanitize the input to allow only 20, 50, or 100.
+            $delCount = (int)$_GET['delete_last'];
+            if (in_array($delCount, [20, 50, 100])) {
+                // Delete the last X entries based on your defined ordering
+                $db->query("
+                    DELETE FROM eventlog
+                    WHERE rowid IN (
+                        SELECT rowid
+                        FROM eventlog
+                        WHERE type NOT IN ('prechat','rechat','infonpc','request','infonpc_close')
+                        ORDER BY gamets DESC, ts DESC, localts DESC, rowid DESC
+                        LIMIT $delCount
+                    )
+                ");
+                
+                // Redirect to refresh the page
+                header("Location: ?table=eventlog");
+                exit;
+            }
+        }
+    
+        // 2) Continue with regular fetch/display logic
+        $limit = isset($_GET["limit"]) ? intval($_GET["limit"]) : 100;
+        $page = isset($_GET["page"]) ? max(1, intval($_GET["page"])) : 1;
+        $offset = ($page - 1) * $limit;
+        
+        $results = $db->fetchAll(
+            "SELECT type, data, gamets, localts, ts, ROWID
+             FROM eventlog a
+             WHERE type NOT IN ('prechat','rechat','infonpc','request','infonpc_close','addnpc','user_input','infosave','init','playerinfo','oghma_import','biography_import','dynamic_oghma_import')
+             ORDER BY gamets DESC, ts DESC, localts DESC, rowid DESC
+             LIMIT $limit OFFSET $offset"
+        );
+        
+        $columnHeaders = [
+            'type' => 'Event',
+            'data' => 'Data',
+            'gamets' => '<a href="https://en.uesp.net/wiki/Lore:Calendar" target="_blank" style="color: yellow;">Tamrielic Time</a>',
+            'localts' => 'Time (UTC)',
+            'ts' => 'TS',
+        ];
+        
+        $mappedResults = array_map(function ($row) use ($columnHeaders) {
+            $mappedRow = [];
+            foreach ($row as $key => $value) {
+                if ($key === 'gamets' && !empty($value)) {
+                    // Convert gamets to Skyrim date format
+                    $value = convert_gamets2skyrim_long_date2($value);
+                }
+                else if ($key === 'localts' && !empty($value)) {
+                    // Format localts to match adventure log format
+                    $dt = new DateTime("@$value");
+                    $dt->setTimezone(new DateTimeZone('UTC'));
+                    $value = $dt->format('d-m-Y H:i:s');
+                }
+                
+                // Special handling for chat events
+                if ($row['type'] === 'chat' && ($key === 'data' || $key === 'type')) {
+                    $value = '<span style="color:rgb(255, 255, 255);">' . htmlspecialchars($value) . '</span>';
+                } else {
+                    $value = htmlspecialchars($value);
+                }
+                $mappedRow[$columnHeaders[$key] ?? $key] = $value;
+            }
+            return $mappedRow;
+        }, $results);
+        
+        // Event Log title with integrated monitor toggle
+        $isAutoRefresh = isset($_GET["autorefresh"]) && $_GET["autorefresh"];
+        echo "<div style='display: flex; align-items: center; margin: 20px 0;'>";
+        echo "<h1 class='my-2' style='margin-right: 15px;'>Event Log</h1>";
+        
+        if ($isAutoRefresh) {
+            echo "<button onclick=\"window.location.href='?table=eventlog'\" class='btn-base btn-secondary' style='padding: 8px 12px; font-size: 0.9em;' title='Stop monitoring events'>⏸️ Stop Live</button>";
+            echo "<span style='margin-left: 10px; color: #28a745; font-weight: bold; font-size: 0.9em;'>🔴 LIVE</span>";
+        } else {
+            echo "<button onclick=\"window.location.href='?table=eventlog&autorefresh=true'\" class='btn-base btn-primary' style='padding: 8px 12px; font-size: 0.9em;' title='Start monitoring events with auto-refresh'>📡 Monitor Live</button>";
+        }
+        echo "</div>";
+        
+        // 3) Generate pagination buttons
+        $prevPage = max(1, $page - 1);
+        $nextPage = $page + 1;
+        
+        // Get total count for pagination
+        $countQuery = "SELECT COUNT(*) as total FROM eventlog WHERE type NOT IN ('prechat','rechat','infonpc','request','infonpc_close','addnpc','user_input','infosave','init')";
+        $countResult = $db->fetchAll($countQuery);
+        $totalRecords = $countResult[0]['total'];
+        $totalPages = ceil($totalRecords / $limit);
+        
+        echo "<div class='pagination-buttons' style='margin: 10px 0;'>";
+        
+        // Previous button
+        if ($page > 1) {
+            echo "<button onclick=\"window.location.href='?table=eventlog&page=$prevPage&limit=$limit'\" class='btn-base btn-primary'>Previous</button> ";
+        }
+        
+        // First 5 pages (1-5)
+        for ($i = 1; $i <= 5 && $i <= $totalPages; $i++) {
+            if ($i == $page) {
+                echo "<button onclick=\"window.location.href='?table=eventlog&page=$i&limit=$limit'\" class='btn-base btn-secondary' style='background-color: #6c757d;'>$i</button> ";
+            } else {
+                echo "<button onclick=\"window.location.href='?table=eventlog&page=$i&limit=$limit'\" class='btn-base btn-primary'>$i</button> ";
+            }
+        }
+        
+        // Show ellipsis and last 5 pages if we have more than 10 pages total
+        if ($totalPages > 10) {
+            echo "<span style='margin: 0 5px; color: #fff;'>...</span>";
+            
+            // Last 5 pages
+            $startLastPages = max(6, $totalPages - 4);
+            for ($i = $startLastPages; $i <= $totalPages; $i++) {
+                if ($i == $page) {
+                    echo "<button onclick=\"window.location.href='?table=eventlog&page=$i&limit=$limit'\" class='btn-base btn-secondary' style='background-color: #6c757d;'>$i</button> ";
+                } else {
+                    echo "<button onclick=\"window.location.href='?table=eventlog&page=$i&limit=$limit'\" class='btn-base btn-primary'>$i</button> ";
+                }
+            }
+        }
+        
+        // Next button - only show if not on last page
+        if ($page < $totalPages) {
+            echo "<button onclick=\"window.location.href='?table=eventlog&page=$nextPage&limit=$limit'\" class='btn-base btn-primary'>Next</button>";
+        }
+        
+        echo "</div>";
+        
+        // 4) Display the "Delete Last X" buttons and "Delete All Events" button
+        echo "<div style='margin: 10px 0;'>";
+        echo "<button 
+                onclick=\"if(confirm('Are you sure you want to delete the last 20 events?')) window.location.href='?table=eventlog&delete_last=20'\" 
+                class='btn-base btn-danger'>
+                Delete Latest 20
+            </button> ";
+        echo "<button 
+                onclick=\"if(confirm('Are you sure you want to delete the last 50 events?')) window.location.href='?table=eventlog&delete_last=50'\" 
+                class='btn-base btn-danger'>
+                Delete Latest 50
+            </button> ";
+        echo "<button 
+                onclick=\"if(confirm('Are you sure you want to delete the last 100 events?')) window.location.href='?table=eventlog&delete_last=100'\" 
+                class='btn-base btn-danger'>
+                Delete Latest 100
+            </button> ";
+        echo "<button 
+                onclick=\"deleteAllEventsConfirm()\" 
+                class='btn-base btn-danger' style='margin-left: 20px; background-color: #dc2626; font-weight: bold;'>
+                ⚠️ Delete ALL Events
+            </button>";
+        
+        // Add JavaScript function for secure confirmation
+        echo "<script>
+        function deleteAllEventsConfirm() {
+            var userInput = prompt('THIS WILL DELETE ALL EVENTS IN THE EVENT LOG!\\n\\nEvents are used for AI context. This action cannot be undone.\\n\\nTo confirm this dangerous operation, please type exactly: Delete');
+            if (userInput === 'Delete') {
+                window.location.href = '?reset=true&table=event';
+            } else if (userInput !== null) {
+                alert('Operation cancelled. You must type exactly \"Delete\" to confirm.');
+            }
+        }
+        </script>";
+        echo "</div>";
+        
+        // 5) Print the table using the modified headers
+        print_array_as_table($mappedResults);
+        
+        // 6) Optional auto-refresh
+        if (isset($_GET["autorefresh"]) && $_GET["autorefresh"]) {
+            header("Refresh:5");
+        }
+    }
+    
+    if (isset($_GET["table"]) && ($_GET["table"] == "cache")) {
+        $results = $db->fetchAll("select  A.*,ROWID FROM eventlog a order by ts  desc");
+        echo "<h1 class='my-2'>Event Log</h1>";
+        print_array_as_table($results);
+    }
+    if (isset($_GET["table"]) && ($_GET["table"] == "log")) {
+        $limit = isset($_GET["limit"]) ? intval($_GET["limit"]) : 50;
+        $page = isset($_GET["page"]) ? max(1, intval($_GET["page"])) : 1;
+        $offset = ($page - 1) * $limit;
+
+        // Add function to determine color based on time value - moved outside
+        function getTimeColor($time) {
+            if ($time <= 2) return "#88cc88"; // green
+            if ($time <= 5) return "#ffff00"; // yellow
+            if ($time <= 8) return "#ffa500"; // orange
+            return "#ff6666"; // red
+        }
+
+        // Add modal HTML structure at the top
+        echo '
+        <div id="contentModal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <div id="modalText"></div>
+            </div>
+        </div>
+        
+        <style>
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 100000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background-color: #2a2a2a;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #444;
+            width: 80%;
+            max-width: 1200px;
+            max-height: 80vh;
+            overflow-y: auto;
+            border-radius: 5px;
+            color: #fff;
+            position: relative;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            position: sticky;
+            z-index: 1;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: #fff;
+            text-decoration: none;
+        }
+
+        #modalText {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            line-height: 1.6;
+            padding: 10px 0;
+            font-size: 12px;
+        }
+
+        /* Prevent background interaction when modal is open */
+        body.modal-open {
+            overflow: hidden;
+        }
+        </style>
+
+        <script>
+        // Modal functionality
+        document.addEventListener("DOMContentLoaded", function() {
+            var modal = document.getElementById("contentModal");
+            var modalText = document.getElementById("modalText");
+            var span = document.getElementsByClassName("close")[0];
+
+            // When the user clicks on <span> (x), close the modal
+            span.onclick = function() {
+                modal.style.display = "none";
+                document.body.classList.remove("modal-open");
+            };
+
+            // When the user clicks anywhere outside of the modal, close it
+            window.onclick = function(event) {
+                if (event.target == modal) {
+                    modal.style.display = "none";
+                    document.body.classList.remove("modal-open");
+                }
+            };
+
+            // Add click handlers to all cell contents
+            document.querySelectorAll(".view-contents-btn").forEach(function(element) {
+                element.addEventListener("click", function() {
+                    modalText.innerHTML = this.getAttribute("data-full-content");
+                    modal.style.display = "block";
+                    document.body.classList.add("modal-open");
+                });
+            });
+        });
+        </script>';
+    
+        $results = $db->fetchAll(
+            "SELECT A.*, ROWID 
+             FROM log a 
+             ORDER BY localts DESC, rowid DESC 
+             LIMIT $limit OFFSET $offset"
+        );
+    
+        $columnHeaders = [
+            'localts' => 'Time (UTC)',
+            'response' => 'AI Response',
+            'prompt' => 'Prompt',
+            'url' => 'HTTP Request'
+        ];
+    
+        $mappedResults = array_map(function ($row) use ($columnHeaders) {
+            $mappedRow = [];
+            foreach ($row as $key => $value) {
+                if ($key === 'prompt') {
+                    // For prompt column, show as a button
+                    $escapedContent = htmlspecialchars($value, ENT_QUOTES);
+                    $mappedRow[$columnHeaders[$key] ?? $key] = '<button class="view-contents-btn" data-full-content="' . $escapedContent . '">🧾</button>';
+                } else if ($key === 'response') {
+                    // For response column, show full content directly
+                    $mappedRow[$columnHeaders[$key] ?? $key] = '<div class="full-content">' . nl2br(htmlspecialchars($value)) . '</div>';
+                } else if ($key === 'localts' && !empty($value)) {
+                    // Format localts to UTC time
+                    $dt = new DateTime("@$value");
+                    $dt->setTimezone(new DateTimeZone('UTC'));
+                    $mappedRow[$columnHeaders[$key]] = $dt->format('d-m-Y H:i:s');
+                } else if ($key === 'url') {
+                    // Check if response starts with Array and contains "in X secs"
+                    if (strpos($row['response'], 'Array') === 0) {
+                        // Strip the "in X secs" from the end
+                        $mappedRow[$columnHeaders[$key] ?? $key] = preg_replace('/ in \d+\.?\d* secs$/', '', $value);
+                    }
+                    // Process timing info for non-Array responses
+                    else if (strpos($value, '[AI secs]') !== false) {
+                        $pattern = '/\[AI secs\]\s+([\d.]+)\s+\[TTS secs\]\s+([\d.]+)/';
+                        if (preg_match($pattern, $value, $matches)) {
+                            $aiTime = floatval($matches[1]);
+                            $totalTtsTime = floatval($matches[2]);
+                            $actualTtsTime = $totalTtsTime - $aiTime;
+                            
+                            // Format numbers
+                            $aiTimeFormatted = number_format($aiTime, 2);
+                            $ttsTimeFormatted = number_format($actualTtsTime, 2);
+                            
+                            // Get colors based on times
+                            $aiColor = getTimeColor($aiTime);
+                            $ttsColor = getTimeColor($actualTtsTime);
+                            $totalColor = getTimeColor($totalTtsTime);
+                            
+                            // Get everything before [AI secs]
+                            $baseText = substr($value, 0, strpos($value, '[AI secs]'));
+                            
+                            $mappedRow[$columnHeaders[$key] ?? $key] = 
+                                $baseText . 
+                                "<br>[LLM] <span style='color: " . $aiColor . "'>" . $aiTimeFormatted . "</span>" .
+                                " [TTS] <span style='color: " . $ttsColor . "'>" . $ttsTimeFormatted . "</span>" .
+                                " [Total]: <span style='color: " . $totalColor . "'>" . $totalTtsTime . "</span>";
+                        } else {
+                            $mappedRow[$columnHeaders[$key] ?? $key] = $value;
+                        }
+                    } else {
+                        $mappedRow[$columnHeaders[$key] ?? $key] = $value;
+                    }
+                } else {
+                    $mappedRow[$columnHeaders[$key] ?? $key] = $value;
+                }
+            }
+            return $mappedRow;
+        }, $results);
+    
+        echo "<h1 class='my-2'>Response Log</h1>";
+    
+        // Add Clean and Export buttons
+        echo "<div class='response-log-actions' style='margin: 15px 0;'>";
+        echo "<button onclick=\"if(confirm('This will clear all the entries in the Response Log. ARE YOU SURE?')) window.location.href='?cleanlog=true'\" class='btn-base btn-danger' style='margin-right: 10px;'>Clean Response Log</button>";
+        echo "<button onclick=\"window.open('?export=log', '_blank')\" class='btn-base btn-primary'>Export Response Log</button>";
+        echo "</div>";
+    
+        $prevPage = max(1, $page - 1);
+        $nextPage = $page + 1;
+    
+        echo "<div class='pagination-buttons' style='margin: 10px 0;'>";
+        if ($page > 1) {
+            echo "<button onclick=\"window.location.href='?table=log&page=$prevPage&limit=$limit'\" class='btn-base btn-primary'>Previous</button> ";
+        }
+        echo "<button onclick=\"window.location.href='?table=log&page=$nextPage&limit=$limit'\" class='btn-base btn-primary'>Next</button>";
+        echo "</div>";
+    
+        print_array_as_table($mappedResults);
+    }
+
+    if (isset($_GET["table"]) && ($_GET["table"] == "quests")) {
+        $results = $db->fetchAll("SELECT name, id_quest, briefing, briefing2, data from quests");
+        
+        // Define column headers mapping
+        $columnHeaders = [
+            'name' => 'Name',
+            'id_quest' => 'Quest ID',
+            'briefing' => 'Briefing',
+            'briefing2' => 'Briefing2',
+            'data' => 'Data'
+        ];
+        
+        $finalRow = [];
+        foreach ($results as $row) {
+            if (isset($finalRow[$row["id_quest"]]))
+                continue;
+            else
+                $finalRow[$row["id_quest"]] = array_combine(
+                    array_values($columnHeaders),
+                    array_values($row)
+                );
+        }
+        
+        echo "<h1 class='my-2'>Current Active Quests</h1>";
+        echo "<p>Note: These quests are only known by your followers. We only track quests which you have active in your journal.</p>";
+
+        print_array_as_table(array_values($finalRow));
+    }
+
+    if (isset($_GET["table"]) && ($_GET["table"] == "currentmission")) {
+        $results = $db->fetchAll("select  A.*,ROWID FROM currentmission A order by gamets desc,localts desc,rowid desc limit 150 offset 0");
+        echo "<h1 class='my-2'>Dynamic AI Objective</h1>";
+        echo "<p>Note: These dynamic objectives are only known by your followers. They are generated by the AI NPCs automatically. You can toggle this with CURRENT_TASK.</p>";
+        print_array_as_table($results);
+    }
+
+    if (isset($_GET["table"]) && ($_GET["table"] == "diarylog")) {
+        // Include game timestamp utilities if not already included
+        require_once(dirname(__DIR__).DIRECTORY_SEPARATOR."lib".DIRECTORY_SEPARATOR."utils_game_timestamp.php");
+
+        $results = $db->fetchAll("select A.*, ROWID FROM diarylog A order by gamets desc,rowid desc limit 150 offset 0");
+        
+        // Define column headers mapping
+        $columnHeaders = [
+            'ts' => 'TS',
+            'gamets' => '<a href="https://en.uesp.net/wiki/Lore:Calendar" target="_blank" style="color: yellow;">Tamrielic Time</a>',
+            'localts' => 'Time (UTC)',
+            'topic' => 'Topic',
+            'content' => 'Content',
+            'people' => 'People',
+            'location' => 'Locations'
+        ];
+        
+        $mappedResults = [];
+        foreach ($results as $row) {
+            $newRow = [];
+            foreach ($columnHeaders as $oldKey => $newKey) {
+                $value = isset($row[$oldKey]) ? $row[$oldKey] : '';
+                
+                // Convert timestamps
+                if ($oldKey === 'localts' && !empty($value)) {
+                    $dt = new DateTime("@".$value);
+                    $dt->setTimezone(new DateTimeZone('UTC'));
+                    $value = $dt->format('d-m-Y H:i:s');
+                }
+                else if ($oldKey === 'gamets' && !empty($value)) {
+                    $value = convert_gamets2skyrim_long_date2($value);
+                }
+                
+                $newRow[$newKey] = $value;
+            }
+            $mappedResults[] = $newRow;
+        }
+
+        echo "<h1 class='my-2'>Diary Entries</h1>";
+        print_array_as_table($mappedResults);
+    }
+
+    if (isset($_GET["table"]) && ($_GET["table"] == "books")) {
+        // Include game timestamp utilities if not already included
+        require_once(dirname(__DIR__).DIRECTORY_SEPARATOR."lib".DIRECTORY_SEPARATOR."utils_game_timestamp.php");
+
+        $results = $db->fetchAll("SELECT title, content, gamets, localts, ts, ROWID FROM books A ORDER BY gamets DESC, rowid DESC LIMIT 150 OFFSET 0");
+        
+        // Define column headers
+        $columnHeaders = [
+            'title' => 'Title',
+            'content' => 'Content',
+            'gamets' => '<a href="https://en.uesp.net/wiki/Lore:Calendar" target="_blank" style="color: yellow;">Tamrielic Time</a>',
+            'localts' => 'Time (UTC)',
+            'ts' => 'TS'
+        ];
+
+        // Map the results to format timestamps and apply headers
+        $mappedResults = array_map(function($row) use ($columnHeaders) {
+            $mappedRow = [];
+            foreach ($row as $key => $value) {
+                if ($key === 'gamets' && !empty($value)) {
+                    $value = convert_gamets2skyrim_long_date2($value);
+                }
+                else if ($key === 'localts' && !empty($value)) {
+                    $dt = new DateTime("@$value");
+                    $dt->setTimezone(new DateTimeZone('UTC'));
+                    $value = $dt->format('d-m-Y H:i:s');
+                }
+                
+                if (isset($columnHeaders[$key])) {
+                    $mappedRow[$columnHeaders[$key]] = htmlspecialchars($value);
+                }
+            }
+            return $mappedRow;
+        }, $results);
+
+        echo "<h1 class='my-2'>Book Log</h1>";
+        print_array_as_table($mappedResults);
+    } 
+
+    if (isset($_GET["table"]) && ($_GET["table"] == "audit_request")) {
+        $limit = isset($_GET["limit"]) ? intval($_GET["limit"]) : 50;
+        $page = isset($_GET["page"]) ? max(1, intval($_GET["page"])) : 1;
+        $offset = ($page - 1) * $limit;
+
+        // Add modal HTML structure if not already present
+        if (strpos($buffer ?? '', 'id="contentModal"') === false) {
+            echo '
+            <div id="contentModal" class="modal">
+                <div class="modal-content">
+                    <span class="close">&times;</span>
+                    <div id="modalText"></div>
+                </div>
+            </div>
+            
+            <style>
+            /* Modal styles */
+            .modal {
+                display: none;
+                position: fixed;
+                z-index: 100000;
+                left: 0;
+                top: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0,0,0,0.5);
+                backdrop-filter: blur(5px);
+                -webkit-backdrop-filter: blur(5px);
+            }
+
+            .modal-content {
+                background-color: #2a2a2a;
+                margin: 5% auto;
+                padding: 20px;
+                border: 1px solid #444;
+                width: 80%;
+                max-width: 1200px;
+                max-height: 80vh;
+                overflow-y: auto;
+                border-radius: 5px;
+                color: #fff;
+                position: relative;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            }
+
+            .close {
+                color: #aaa;
+                float: right;
+                font-size: 28px;
+                font-weight: bold;
+                cursor: pointer;
+                position: sticky;
+                z-index: 1;
+            }
+
+            .close:hover,
+            .close:focus {
+                color: #fff;
+                text-decoration: none;
+            }
+
+            #modalText {
+                white-space: pre-wrap;
+                word-wrap: break-word;
+                line-height: 1.6;
+                padding: 10px 0;
+                font-size: 12px;
+            }
+
+            /* Prevent background interaction when modal is open */
+            body.modal-open {
+                overflow: hidden;
+            }
+            </style>
+
+            <script>
+            // Modal functionality
+            document.addEventListener("DOMContentLoaded", function() {
+                var modal = document.getElementById("contentModal");
+                var modalText = document.getElementById("modalText");
+                var span = document.getElementsByClassName("close")[0];
+
+                // When the user clicks on <span> (x), close the modal
+                span.onclick = function() {
+                    modal.style.display = "none";
+                    document.body.classList.remove("modal-open");
+                };
+
+                // When the user clicks anywhere outside of the modal, close it
+                window.onclick = function(event) {
+                    if (event.target == modal) {
+                        modal.style.display = "none";
+                        document.body.classList.remove("modal-open");
+                    }
+                };
+
+                // Add click handlers to all cell contents
+                document.querySelectorAll(".view-contents-btn").forEach(function(element) {
+                    element.addEventListener("click", function() {
+                        modalText.innerHTML = this.getAttribute("data-full-content");
+                        modal.style.display = "block";
+                        document.body.classList.add("modal-open");
+                    });
+                });
+            });
+            </script>';
+        }
+
+        $results = $db->fetchAll(
+            "SELECT created_at, request, result, url, rowid 
+             FROM audit_request 
+             ORDER BY created_at DESC 
+             LIMIT $limit OFFSET $offset"
+        );
+
+        $columnHeaders = [
+            'created_at' => 'Time (UTC)',
+            'request' => 'Request',
+            'result' => 'Result',
+            'rowid' => 'Row ID',
+            'url' => 'URL'
+        ];
+
+        $mappedResults = array_map(function ($row) use ($columnHeaders) {
+            $mappedRow = [];
+            foreach ($row as $key => $value) {
+                if ($key === 'request') {
+                    // For request column, show as a button with preview (400 characters)
+                    $escapedContent = htmlspecialchars($value, ENT_QUOTES);
+                    $preview = htmlspecialchars(substr($value, 0, 400)) . (strlen($value) > 400 ? '...' : '');
+                    $mappedRow[$columnHeaders[$key] ?? $key] = 
+                        '<div style="display: flex; align-items: center; gap: 10px;">' .
+                        '<span style="flex-grow: 1;">' . $preview . '</span>' .
+                        '<button class="view-contents-btn btn-base btn-primary" data-full-content="' . $escapedContent . '">📄 View Full</button>' .
+                        '</div>';
+                } else if ($key === 'created_at' && !empty($value)) {
+                    // Format timestamp to UTC time
+                    $dt = new DateTime($value);
+                    $dt->setTimezone(new DateTimeZone('UTC'));
+                    $mappedRow[$columnHeaders[$key]] = $dt->format('d-m-Y H:i:s');
+                } else if ($key === 'result') {
+                    // Format result with color coding - green for OK, red for others
+                    $resultColor = (strtoupper(trim($value)) === 'OK') ? '#4CAF50' : '#f44336';
+                    $mappedRow[$columnHeaders[$key] ?? $key] = '<div class="full-content" style="color: ' . $resultColor . '; font-weight: bold;">' . nl2br(htmlspecialchars($value)) . '</div>';
+                } else if ($key === 'url') {
+                    // Format URL column
+                    $mappedRow[$columnHeaders[$key] ?? $key] = htmlspecialchars($value);
+                } else {
+                    $mappedRow[$columnHeaders[$key] ?? $key] = htmlspecialchars($value);
+                }
+            }
+            return $mappedRow;
+        }, $results);
+
+        echo "<h1 class='my-2'>Request to LLM Services Log</h1>";
+        echo "<p>This table shows requests made to LLM services and their responses.</p>";
+
+        // Pagination buttons
+        $prevPage = max(1, $page - 1);
+        $nextPage = $page + 1;
+
+        echo "<div class='pagination-buttons' style='margin: 10px 0;'>";
+        if ($page > 1) {
+            echo "<button onclick=\"window.location.href='?table=audit_request&page=$prevPage&limit=$limit'\" class='btn-base btn-primary'>Previous</button> ";
+        }
+        echo "<button onclick=\"window.location.href='?table=audit_request&page=$nextPage&limit=$limit'\" class='btn-base btn-primary'>Next</button>";
+        echo "</div>";
+
+        print_array_as_table($mappedResults);
+    } 
+
+    if (isset($_GET["table"]) && ($_GET["table"] == "openai_token_count")) {
+        $results = $db->fetchAll("select  A.*,ROWID FROM openai_token_count A order by rowid desc limit 150 offset 0");
+        echo "<h1 class='my-2'>OpenAI Token Pricing</h1>";
+        echo ($results);
+    }
+
+    
+    if (isset($_GET["table"]) && ($_GET["table"] == "memory")) {
+        // Include game timestamp utilities if not already included
+        require_once(dirname(__DIR__).DIRECTORY_SEPARATOR."lib".DIRECTORY_SEPARATOR."utils_game_timestamp.php");
+
+        echo "<style>
+            .table-container table td:nth-child(2), /* Tamrielic Time */
+            .table-container table th:nth-child(2) {
+                min-width: 200px;
+            }
+            .table-container table td:nth-child(3), /* Time (UTC) */
+            .table-container table th:nth-child(3) {
+                min-width: 150px;
+            }
+            .table-container table td:nth-child(5), /* Message */
+            .table-container table th:nth-child(5) {
+                min-width: 300px;
+            }
+        </style>";
+
+        $results = $db->fetchAll("select A.*, ROWID as rowid FROM memory A order by gamets desc,rowid desc limit 150 offset 0");
+        
+        // Define column headers mapping
+        $columnHeaders = [
+            'ts' => 'TS',
+            'gamets' => '<a href="https://en.uesp.net/wiki/Lore:Calendar" target="_blank" style="color: yellow;">Tamrielic Time</a>',
+            'localts' => 'Time (UTC)',
+            'speaker' => 'Speaker',
+            'message' => 'Message',
+            'listener' => 'Listener',
+            'event' => 'Event',
+            'momentum' => 'Momentum'
+        ];
+        
+        $mappedResults = [];
+        foreach ($results as $row) {
+            $newRow = [];
+            foreach ($columnHeaders as $oldKey => $newKey) {
+                $value = isset($row[$oldKey]) ? $row[$oldKey] : '';
+                
+                // Convert timestamps
+                if ($oldKey === 'localts' && !empty($value)) {
+                    $dt = new DateTime("@".$value);
+                    $dt->setTimezone(new DateTimeZone('UTC'));
+                    $value = $dt->format('d-m-Y H:i:s');
+                }
+                else if ($oldKey === 'gamets' && !empty($value)) {
+                    $value = convert_gamets2skyrim_long_date2($value);
+                }
+                
+                $newRow[$newKey] = $value;
+            }
+            $mappedResults[] = $newRow;
+        }
+
+        echo "<h1 class='my-2'>Memories Log</h1>";
+        print_array_as_table($mappedResults);
+    }
+    
+    if (isset($_GET["table"]) && ($_GET["table"] == "memory_summary")) {
+        // Include game timestamp utilities if not already included
+        require_once(dirname(__DIR__).DIRECTORY_SEPARATOR."lib".DIRECTORY_SEPARATOR."utils_game_timestamp.php");
+
+        // 1. Handle save edits via POST
+        if (isset($_POST['save_memory_edit'])) {
+            $rowid = intval($_POST['rowid']);
+            $summary = $_POST['summary'];
+            $tags = $_POST['tags'];
+            $companions = $_POST['companions'];
+            
+            // Update the database
+            $db->update(
+                'memory_summary',
+                "summary = '" . $db->escape($summary) . "', 
+                 tags = '" . $db->escape($tags) . "',
+                 companions = '" . $db->escape($companions) . "'",
+                "rowid = " . $rowid
+            );
+            
+            // Redirect to refresh the page
+            header("Location: ?table=memory_summary&updated=1");
+            exit;
+        }
+
+        // Handle delete
+        if (isset($_GET['delete_memory']) && !empty($_GET['delete_memory'])) {
+            $rowid = intval($_GET['delete_memory']);
+            $db->delete('memory_summary', "rowid = " . $rowid);
+            header("Location: ?table=memory_summary&deleted=1");
+            exit;
+        }
+
+        // Show success/delete messages
+        if (isset($_GET['updated'])) {
+            echo "<div class='alert alert-success'>Memory summary updated successfully!</div>";
+        }
+        if (isset($_GET['deleted'])) {
+            echo "<div class='alert alert-danger'>Memory summary deleted successfully!</div>";
+        }
+
+        // 3. Fetch data from database
+        $results = $db->fetchAll("SELECT gamets_truncated, n, summary, companions, tags, classifier, uid, ROWID as rowid, packed_message, native_vec 
+                                FROM memory_summary 
+                                ORDER BY gamets_truncated DESC, rowid DESC 
+                                LIMIT 150");
+
+        // 4. Process each row for display
+        $processedResults = [];
+        foreach ($results as $row) {
+            // Create the display HTML
+            $displayHtml = "<div id='display-{$row['rowid']}'>
+                <div class='summary-section'>
+                    <span class='summary-content'>" . nl2br(htmlspecialchars($row['summary'])) . "</span>
+                </div>
+                <div class='summary-section'>
+                    <span class='summary-label'>People:</span>
+                    <span class='summary-content'>" . htmlspecialchars($row['companions']) . "</span>
+                </div>
+                <div class='subcategory-section'>
+                    <span class='summary-label subcategory-label'>Tags:</span>
+                    <span class='summary-content subcategory-content'>" . htmlspecialchars($row['tags']) . "</span>
+                </div>
+                <div class='subcategory-section'>
+                    <span class='summary-label subcategory-label'>Embedding:</span>
+                    <span class='summary-content subcategory-content'>" . htmlspecialchars($row['native_vec'] ?? '') . "</span>
+                </div>
+                <div class='button-group' style='margin-top: 10px;'>
+                    <button class='btn-base action-button edit' onclick='toggleEdit({$row['rowid']})'>Edit</button>
+                    <button class='btn-base btn-danger' onclick=\"if(confirm('Are you sure you want to delete this memory summary?')) window.location.href='?table=memory_summary&delete_memory={$row['rowid']}'\">Delete</button>
+                </div>
+                <div class='mt-2'>
+                    <span class='summary-label'>Packed Memory Content:</span>
+                </div>
+                <div class='memory-cell'>
+                    <textarea readonly class='memory-content'>" . htmlspecialchars($row['packed_message']) . "</textarea>
+                </div>
+            </div>";
+            
+            // Create the edit form HTML
+            $displayHtml .= "<form id='edit-form-{$row['rowid']}' class='edit-form' method='post' action='?table=memory_summary'>
+                <input type='hidden' name='rowid' value='{$row['rowid']}'>
+                <input type='hidden' name='save_memory_edit' value='1'>
+                <label>Summary:</label>
+                <textarea name='summary' class='edit-textarea form-control'>" . htmlspecialchars($row['summary']) . "</textarea>
+                <label>Tags:</label>
+                <input type='text' name='tags' class='edit-input form-control' value='" . htmlspecialchars($row['tags']) . "'>
+                <label>People:</label>
+                <input type='text' name='companions' class='edit-input form-control' value='" . htmlspecialchars($row['companions']) . "'>
+                <div class='button-group' style='margin-top: 10px;'>
+                    <button type='submit' class='btn-base action-button add-new'>Save</button>
+                    <button type='button' class='btn-base btn-cancel' onclick='cancelEdit({$row['rowid']})'>Cancel</button>
+                </div>
+            </form>";
+
+            // Create the processed row with rowid included
+            $processedRow = [
+                'RowID' => $row['rowid'],
+                '<a href="https://en.uesp.net/wiki/Lore:Calendar" target="_blank" style="color: yellow;">Tamrielic Time</a>' => !empty($row['gamets_truncated']) ? convert_gamets2skyrim_long_date2($row['gamets_truncated']) : '',
+                'ID' => $row['n'],
+                'Classifier' => $row['classifier'],
+                'Summary' => $displayHtml
+            ];
+            
+            $processedResults[] = $processedRow;
+        }
+
+        // 5. Output the page header
+        echo "<h1 class='my-2'>Summarized Memories Log</h1>";
+        echo "<h3>(Enable AUTO_CREATE_SUMMARYS in the default profile)</h3>";
+        
+        // Add Memory Management buttons
+        echo "<div class='memory-management-actions' style='margin: 15px 0;'>";
+        echo "<button onclick=\"syncMemoriesConfirm()\" class='btn-base btn-primary' style='margin-right: 10px;'>🔄 Sync & Create Memory Summaries</button>";
+        echo "<button onclick=\"deleteAllMemoriesConfirm()\" class='btn-base btn-danger' style='background-color: #dc2626; font-weight: bold;'>⚠️ Delete All Memory Summaries</button>";
+        echo "</div>";
+        
+        // Add JavaScript functions for confirmations
+        echo "<script>
+        function syncMemoriesConfirm() {
+            if (confirm('Will use tokens from your current AI connector. May take a few minutes to process. DO NOT REFRESH THE WEBPAGE!')) {
+                window.location.href = '" . $webRoot . "/ui/tests/vector-compact-chromadb.php';
+            }
+        }
+        
+        function deleteAllMemoriesConfirm() {
+            var userInput = prompt('THIS WILL DELETE ALL SUMMARIZED MEMORIES!\\n\\nThis action cannot be undone and will remove all AI memory summaries.\\n\\nTo confirm this dangerous operation, please type exactly: Delete');
+            if (userInput === 'Delete') {
+                window.location.href = '" . $webRoot . "/ui/tests/vector-delete-memory_summary.php';
+            } else if (userInput !== null) {
+                alert('Operation cancelled. You must type exactly \"Delete\" to confirm.');
+            }
+        }
+        </script>";
+        
+        // 6. Add the necessary styles
+        echo "<style>
+            .edit-form {
+                display: none;
+                padding: 15px;
+                border-radius: 5px;
+                margin: 10px 0;
+                background-color: #2a2a2a;
+            }
+            .edit-textarea {
+                width: 100%;
+                min-height: 100px;
+                margin-bottom: 5px;
+                height: 300px;
+                background-color: #333;
+                color: #fff;
+                border: 1px solid #444;
+            }
+            .edit-input {
+                width: 100%;
+                margin-bottom: 5px;
+                background-color: #333;
+                color: #fff;
+                border: 1px solid #444;
+                padding: 5px;
+            }
+            .memory-content {
+                height: 100%;
+                min-height: 150px;
+                overflow-y: auto;
+                padding: 5px;
+                white-space: pre-wrap;
+                word-wrap: break-word;
+                border: 1px solid #444;
+                background-color: #333;
+                color: #fff;
+                width: 100%;
+            }
+            .summary-section {
+                margin-bottom: 8px;
+                padding: 5px;
+                border-bottom: 1px solid #444;
+            }
+            .subcategory-section {
+                margin-bottom: 6px;
+                padding: 3px 5px 3px 15px;
+                border-bottom: 1px dotted #555;
+                font-size: 0.85em;
+            }
+            .subcategory-label {
+                color: #aaa;
+                font-size: 0.9em;
+            }
+            .subcategory-content {
+                color: #ddd;
+                font-size: 0.9em;
+            }
+            .summary-label {
+                font-weight: bold;
+                margin-right: 5px;
+                color: #fff;
+            }
+            .summary-content {
+                color: #fff;
+            }
+        </style>";
+
+        // 7. Add the JavaScript for edit functionality
+        echo "<script>
+            function toggleEdit(rowid) {
+                const displayDiv = document.getElementById('display-' + rowid);
+                const editForm = document.getElementById('edit-form-' + rowid);
+                displayDiv.style.display = 'none';
+                editForm.style.display = 'block';
+            }
+            
+            function cancelEdit(rowid) {
+                const displayDiv = document.getElementById('display-' + rowid);
+                const editForm = document.getElementById('edit-form-' + rowid);
+                displayDiv.style.display = 'block';
+                editForm.style.display = 'none';
+            }
+        </script>";
+
+        // 8. Display the table
+        print_array_as_table($processedResults);
+    }
+      
+    if (isset($_GET["notes"])) {
+        echo file_get_contents(__DIR__."/notes.html");
+    }
+    
+    if (isset($_GET["plugins_show"])) {
+        $pluginFoldersRoot = __DIR__ . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "ext" . DIRECTORY_SEPARATOR;
+        $pluginFolders = scandir($pluginFoldersRoot);
+        foreach ($pluginFolders as $n => $folder) {
+            // Skip hidden folders, non-directories, and xLifeLink_plugin
+            if (!is_dir($pluginFoldersRoot . $folder) || 
+                substr($folder, 0, 1) === '.' || 
+                $folder === 'xLifeLink_plugin') {
+                unset($pluginFolders[$n]);
+            }
+        }
+    
+        // Add custom styles
+        echo '<style>
+        body {
+            padding-bottom: 40px; /* Reduced space for footer */
+            padding-left: 10px;
+        }
+        table {
+            border-collapse: collapse;
+            margin-top: 10px;
+            width: 80%;
+        }
+        table th, table td {
+            padding: 10px;
+        }
+        table th {
+            background-color: var(--bs-primary-bg-subtle) !important;
+        }
+
+        table-td {
+            border: 1px solid var(--bs-border-color);
+        }
+        .title-with-button {
+            display: flex;
+            align-items: center;
+        }
+        .title-with-button h2 {
+            margin-right: 10px;
+            margin-bottom: 0;
+        }
+        </style>';
+    
+        // Add a title for installed plugins with Refresh button
+        echo '<body>';
+        echo '<br>';
+        echo '<h1>Installed Server Plugins 
+            <a href="https://dwemerdynamics.hostwiki.io/en/CHIM-Plugins" target="_blank" rel="noopener" 
+               style="display: inline-block; margin-left: 15px; color: rgb(242, 124, 17); text-decoration: none; font-size: 0.7em; vertical-align: top; border: 2px solid rgb(242, 124, 17); border-radius: 50%; width: 24px; height: 24px; text-align: center; line-height: 20px; transition: all 0.3s ease;" 
+               title="View detailed documentation about CHIM Plugins"
+               onmouseover="this.style.background=\'rgb(242, 124, 17)\'; this.style.color=\'white\';" 
+               onmouseout="this.style.background=\'transparent\'; this.style.color=\'rgb(242, 124, 17)\';">ℹ</a>
+        </h1>';
+        echo '<form method="post" style="margin: 0;">
+        <input type="hidden" name="refresh_plugins" value="1">
+        <button type="submit" class="btn-primary">Refresh Plugins</button>
+        </form>';
+        echo '</div>';
+    
+        // Function to handle delete button display
+        function renderDeleteButton($folder, $name = null) {
+            if ($folder !== 'herika_heal' && $folder !== 'time_awareness') {
+                $displayName = $name ?? $folder;
+                return '<form method="post" style="margin:0;" onsubmit="return confirm(\'Are you sure you want to delete the ' . htmlspecialchars($displayName) . ' plugin?\');">
+                            <input type="hidden" name="delete_plugin" value="' . htmlspecialchars($folder) . '">
+                            <button type="submit" class="btn-danger">Delete Plugin</button>
+                        </form>';
+            }
+            return 'Cannot be deleted';
+        }
+
+        // Function to get latest GitHub release version
+        function getLatestGithubRelease($repo) {
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, "https://api.github.com/repos/{$repo}/contents/manifest.json");
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+            curl_setopt($ch, CURLOPT_USERAGENT, 'CHIM-Server');
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Accept: application/vnd.github.v3+json'
+            ]);
+            $output = curl_exec($ch);
+            curl_close($ch);
+            
+            if ($output) {
+                $data = json_decode($output, true);
+                if (isset($data['content'])) {
+                    // GitHub API returns file content as base64 encoded
+                    $manifestContent = base64_decode($data['content']);
+                    $manifest = json_decode($manifestContent, true);
+                    
+                    if ($manifest && isset($manifest['version'])) {
+                        return $manifest['version'];
+                    }
+                }
+            }
+            return '';
+        }
+
+        $installed_plugins = [];
+
+        // Display installed plugins in a table
+        echo '<table border="1">';
+        echo '<tr>
+                <th>Plugin</th>
+                <th>Description</th>
+                <th>Current Version</th>
+                <th>Latest Version</th>
+                <th>Plugin Menu</th>
+                <th>Delete Plugin</th>
+            </tr>';
+
+        // In the manifest.json exists case
+        foreach ($pluginFolders as $folder) {
+            $manifestPath = $pluginFoldersRoot . $folder . '/manifest.json';
+            if (file_exists($manifestPath)) {
+                
+                $manifest = json_decode(file_get_contents($manifestPath), true);
+                $name = $manifest['name'] ?? $folder;
+                $description = $manifest['description'] ?? 'No description available';
+                $configUrl = $manifest['config_url'] ?? '';
+                $version = $manifest['version'] ?? '';
+                $gitRepo = $manifest['git_repo'] ?? '';
+                
+                // Get latest version if git repo is specified
+                $latestVersion = '';
+                if (!empty($gitRepo)) {
+                    $latestVersion = getLatestGithubRelease($gitRepo);
+                }
+                
+                $installed_plugins[]=$name;
+
+                echo '<tr>';
+                echo '<td>' . htmlspecialchars($name) . '</td>';
+                echo '<td>' . htmlspecialchars($description) . '</td>';
+                echo '<td>' . htmlspecialchars($version) . '</td>';
+                
+                // Display latest version with color if different from current
+                if (!empty($latestVersion) && !empty($version) && version_compare($latestVersion, $version, '>')) {
+                    echo '<td style="color: #ff4444; font-weight: bold;">' . htmlspecialchars($latestVersion) . ' <span title="Update Available">⬆️</span></td>';
+                } else {
+                    echo '<td>' . htmlspecialchars($latestVersion) . '</td>';
+                }
+                
+                echo '<td>';
+                if (!empty($configUrl)) {
+                    echo '<button onclick="window.open(\'' . htmlspecialchars($configUrl) . '\', \'_blank\')" class="btn-base btn-primary">Plugin Page</button>';
+                    if (isset($manifest['schema_version']) && $manifest['schema_version']==2) {
+                        echo '<button onclick="window.open(\'' . htmlspecialchars("/HerikaServer/ext/generic_installer.php?PACKAGE_NAME={$manifest['name']}&GITHUB_REPO={$manifest['git_repo']}") . '\', \'_blank\')" class="btn-base btn-save">Update plugin</button>';
+                    }
+                } else {
+                    echo 'No Plugin Page';
+                }
+
+                echo '</td>';
+                echo '<td>' . renderDeleteButton($folder, $name) . '</td>';
+                echo '</tr>';
+            } else {
+                echo '<tr>';
+                echo '<td>' . htmlspecialchars($folder) . '</td>';
+                echo '<td>No manifest.json found</td>';
+                echo '<td></td>';
+                echo '<td></td>';
+                echo '<td>No Plugin Page</td>';
+                echo '<td>' . renderDeleteButton($folder) . '</td>';
+                echo '</tr>';
+            }
+        }
+        echo '</table>';
+
+        // Add the "CHIM Plugins" title
+        echo '<br>';
+        echo '<div style="display: flex; align-items: center; margin-top: 20px;">';
+        echo '<h1 style="margin-right: 10px;">CHIM Plugins Repository</h1>';
+        echo '</div>';
+        echo '<p>Here you can download extensions that add extra AI features to CHIM.</p>';
+
+        // Load plugin repository data from JSON file
+        $pluginRepositoryFile = __DIR__ . '/data/plugin_repository.json';
+        $pluginRepository = [];
+        
+        if (file_exists($pluginRepositoryFile)) {
+            $jsonData = json_decode(file_get_contents($pluginRepositoryFile), true);
+            if ($jsonData && isset($jsonData['plugins'])) {
+                $pluginRepository = $jsonData['plugins'];
+            }
+        }
+
+        echo '<table border="1">';
+        echo '<tr>
+                <th>Plugin</th>
+                <th>Description</th>
+                <th>Plugin Menu</th>
+            </tr>';
+
+        foreach ($pluginRepository as $plugin) {
+            $name = $plugin['name'];
+            $description = $plugin['description'] ?? 'No description available';
+            $configUrl = "/HerikaServer/ext/generic_installer.php?PACKAGE_NAME={$plugin['name']}&GITHUB_REPO={$plugin['git_repo']}";
+            $githubUrl = $plugin['github_url'] ?? '';
+            $modDownloadUrl = $plugin['mod_download_url'] ?? '';
+            $isInstalled = in_array($name, $installed_plugins);
+
+            echo '<tr>';
+            echo '<td>' . htmlspecialchars($name) . '</td>';
+            echo '<td>' . htmlspecialchars($description) . '</td>';
+            echo '<td>';
+            if ($isInstalled) {
+                echo '<button class="btn-base" disabled style="opacity: 0.6;">Already Installed</button>';
+            } else {
+                echo '<button onclick="window.open(\'' . htmlspecialchars($configUrl) . '\', \'_blank\')" class="btn-base btn-save">Install Plugin</button>';
+            }
+            if (!empty($githubUrl)) {
+                echo ' <button onclick="window.open(\'' . htmlspecialchars($githubUrl) . '\', \'_blank\')" class="btn-base btn-primary">GitHub</button>';
+            }
+            if (!empty($modDownloadUrl)) {
+                echo ' <button onclick="window.open(\'' . htmlspecialchars($modDownloadUrl) . '\', \'_blank\')" class="btn-base btn-primary">Mod Download</button>';
+            }
+            echo '</td>';
+            echo '</tr>';
+        }
+        echo '</table>';
+
+        // Add basic information paragraph
+        echo '<ul>';
+        echo '<li>Download a plugin by clicking the <b>[Download PLUGIN NAME]</b> button.</li>';
+        echo '<li>Click the associated <b>[Mod Download]</b> button for the plugin. Install it with your mod manager of choice.</li>';
+        echo '<li>If the plugin allows it, click the <b>[Configure Plugin]</b> button to make any changes.</li>';
+        echo '<li>Start up the game and open the MCM menu if present to make any further changes.</li>';
+        echo '<li>Then you are good to go!</li>';
+        echo '</ul>';
+  
+        // Check if the MinAI plugin is already installed
+        $minaiInstalled = is_dir($pluginFoldersRoot . 'minai_plugin');
+    
+        // Display the MinAI plugin download section in a table
+        echo '<table border="1">';
+        echo '<tr>
+                <th>Plugin</th>
+                <th>Description</th>
+                <th>Mod Page</th>
+                <th>Skyrim Mod Download</th>
+            </tr>';
+        echo '<tr>';
+    
+        // Download cell
+        echo '<td style="text-align: center;">';
+        if ($minaiInstalled) {
+            // Show that plugin is already installed
+            echo '<button class="btn-primary" disabled>MinAI Installed</button>';
+        } else {
+            echo '<form method="post" style="margin:0;">
+                    <input type="hidden" name="download_minai" value="1">
+                    <button type="submit" class="btn-primary">Download MinAI</button>
+                  </form>';
+        }
+        echo '</td>';
+    
+        // Description cell
+        echo '<td>Extension for CHIM that expands its capabilities and optionally adds NSFW integrations.<br>Requirements: <a href="https://www.nexusmods.com/skyrimspecialedition/mods/16495" target="_blank">JContainers</a>, <a href="https://www.nexusmods.com/skyrimspecialedition/mods/22854" target="_blank">Papyrus Extender</a>, <a href="https://www.nexusmods.com/skyrimspecialedition/mods/36869" target="_blank">SPID</a></td>';
+    
+        // More Info cell with button
+        echo '<td><button onclick="window.open(\'https://github.com/MinLL/MinAI\', \'_blank\')" class="btn-base btn-primary">More Info</button></td>';
+    
+        // Skyrim Mod Download cell with button
+        echo '<td><button onclick="window.open(\'https://github.com/MinLL/MinAI/releases\', \'_blank\')" class="btn-base btn-primary">Mod Download</button></td>';
+    
+        echo '</tr></table>';
+        echo '<br>';
+        echo '<p>You can make your own plugin quite easily!</p>';
+        echo '<p><a href="https://dwemerdynamics.hostwiki.io/en/CHIM-Plugins" target="_blank">Check out our guide in the manual to learn how to make your own plugin.</a></p>';
+        echo '</body>';
+    }
+
+    if (isset($_POST['download_minai'])) {
+        // URL of the MinAI stable branch zip file
+        $zipUrl = 'https://github.com/MinLL/MinAI/archive/refs/heads/stable.zip';
+        $zipFile = tempnam(sys_get_temp_dir(), 'minai_') . '.zip';
+    
+        // Download the zip file
+        $zipContent = file_get_contents($zipUrl);
+        if ($zipContent === false) {
+            $errorMessage = 'Failed to download the zip file.';
+        } else {
+            file_put_contents($zipFile, $zipContent);
+    
+            $zip = new ZipArchive;
+            if ($zip->open($zipFile) === TRUE) {
+                $destination = __DIR__ . '/../ext/';
+                $extracted = $zip->extractTo($destination);
+                if ($extracted) {
+                    // Move the minai_plugin folder from MinAI-stable to ext
+                    $sourcePath = $destination . 'MinAI-stable/minai_plugin';
+                    $targetPath = $destination . 'minai_plugin';
+    
+                    // Remove existing minai_plugin directory if it exists
+                    if (is_dir($targetPath)) {
+                        rrmdir($targetPath);
+                    }
+    
+                    // Move the plugin directory
+                    rename($sourcePath, $targetPath);
+    
+                    // Clean up the extracted files
+                    rrmdir($destination . 'MinAI-stable');
+    
+                    $zip->close();
+                    unlink($zipFile);
+    
+                    // Recursively set permissions to 0777 and change owner and group to 'dwemer'
+                    function chmod_chown_chgrp_r($path, $filemode, $user, $group) {
+                        if (is_dir($path)) {
+                            // Change permissions, owner, and group for the directory
+                            if (!chmod($path, $filemode)) {
+                                echo "Failed to chmod directory $path<br>";
+                            }
+                            if (!chown($path, $user)) {
+                                echo "Failed to chown directory $path<br>";
+                            }
+                            if (!chgrp($path, $group)) {
+                                echo "Failed to chgrp directory $path<br>";
+                            }
+    
+                            // Process contents of the directory
+                            $objects = scandir($path);
+                            foreach ($objects as $file) {
+                                if ($file != '.' && $file != '..') {
+                                    $fullpath = $path . '/' . $file;
+                                    chmod_chown_chgrp_r($fullpath, $filemode, $user, $group);
+                                }
+                            }
+                        } else {
+                            // Change permissions, owner, and group for the file
+                            if (!chmod($path, $filemode)) {
+                                echo "Failed to chmod file $path<br>";
+                            }
+                            if (!chown($path, $user)) {
+                                echo "Failed to chown file $path<br>";
+                            }
+                            if (!chgrp($path, $group)) {
+                                echo "Failed to chgrp file $path<br>";
+                            }
+                        }
+                    }
+    
+                    // Set permissions and ownership
+                    chmod_chown_chgrp_r($targetPath, 0777, 'dwemer', 'www-data');
+    
+                    $successMessage = 'MinAI plugin downloaded and installed successfully.';
+                } else {
+                    $zip->close();
+                    unlink($zipFile);
+                    $errorMessage = 'Failed to extract the zip file.';
+                }
+            } else {
+                unlink($zipFile);
+                $errorMessage = 'Failed to open the zip file.';
+            }
+        }
+    
+        // Store messages in session and redirect to refresh the page
+        if (!empty($errorMessage)) {
+            $_SESSION['errorMessage'] = $errorMessage;
+        } elseif (!empty($successMessage)) {
+            $_SESSION['successMessage'] = $successMessage;
+        }
+        header('Location: ' . $_SERVER['REQUEST_URI']);
+        exit;
+    }
+    
+    
+    // Handle the Delete Plugin button click
+    if (isset($_POST['delete_plugin'])) {
+        $pluginToDelete = $_POST['delete_plugin'];
+        $pluginPath = __DIR__ . '/../ext/' . $pluginToDelete;
+    
+        if (is_dir($pluginPath)) {
+            rrmdir($pluginPath);
+            $successMessage = "Plugin '$pluginToDelete' has been deleted.";
+        } else {
+            $errorMessage = "Plugin '$pluginToDelete' not found.";
+        }
+    
+        // Store messages in session and redirect to refresh the page
+        if (!empty($errorMessage)) {
+            $_SESSION['errorMessage'] = $errorMessage;
+        } elseif (!empty($successMessage)) {
+            $_SESSION['successMessage'] = $successMessage;
+        }
+        header('Location: ' . $_SERVER['REQUEST_URI']);
+        exit;
+    }
+    
+    // Handle the Refresh Plugins button click
+    if (isset($_POST['refresh_plugins'])) {
+        // Redirect back to the same page
+        header('Location: ' . $_SERVER['REQUEST_URI']);
+        exit;
+    }
+    
+    // Handle messages from the session
+    if (isset($_SESSION['errorMessage'])) {
+        $errorMessage = $_SESSION['errorMessage'];
+        unset($_SESSION['errorMessage']);
+    }
+    
+    if (isset($_SESSION['successMessage'])) {
+        $successMessage = $_SESSION['successMessage'];
+        unset($_SESSION['successMessage']);
+    }
+    
+    // Recursive function to delete a directory and its contents
+    function rrmdir($dir) {
+        if (is_dir($dir)) {
+            $objects = scandir($dir);
+            foreach ($objects as $object) {
+                if ($object != '.' && $object != '..') {
+                    $path = $dir . DIRECTORY_SEPARATOR . $object;
+                    if (is_dir($path)) {
+                        rrmdir($path);
+                    } else {
+                        unlink($path);
+                    }
+                }
+            }
+            rmdir($dir);
+        }
+    }
+    ?>
+</div> <!-- close main container -->
+<?php
+
+include(__DIR__.DIRECTORY_SEPARATOR."tmpl/footer.html");
+
+$buffer = ob_get_contents();
+ob_end_clean();
+$title = $TITLE;
+$buffer = preg_replace('/(<title>)(.*?)(<\/title>)/i', '$1' . $title . '$3', $buffer);
+echo $buffer;
+
+?>

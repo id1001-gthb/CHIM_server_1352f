@@ -1,0 +1,83 @@
+<?php
+
+
+// New structure
+// $PROMPTS["event"]["cue"] => array containing cues. This is the last text sent to LLM, should be an guided instruction
+// $PROMPTS["event"]["player_request"] => array containing requirements. This is what is the player requesting for (a question, a comment...)
+// $PROMPTS["event"]["extra"] =>  enable/disable, force mod, change token limit or define a transformer (non IA related) function.
+// Full Prompt then is $PROMPT_HEAD + $HERIKA_PERS + $COMMAND_PROMPT + CONTEXT + requirement + cue
+
+// Common patterns to use in most functions
+$MAXIMUM_WORDS=($GLOBALS["MAX_WORDS_LIMIT"]>0)?"(Maximum {$GLOBALS["MAX_WORDS_LIMIT"]} words)":"";
+
+// Database Prompt (Dialogue)
+$TEMPLATE_DIALOG=" {$GLOBALS["HERIKA_NAME"]}'s next dialogue line should be a casual direct reaction to what was just said." . 
+" Avoid narrations, be original, creative, knowledgeable, use your own thoughts. " . 
+" Review dialogue history to focus on conversation topic and to avoid repeating sentences and phraseology from previous dialog lines." . 
+" {$GLOBALS["HERIKA_NAME"]}'s next dialogue lines will use this format \"{$GLOBALS["HERIKA_NAME"]}: ";
+
+// Database Prompt (Dialogue)
+// "should be a casual direct reaction to what was just said" is not always true, maybe last line was the same NPC,
+// and is repeating (not copying) this same line, because is the 'direct reaction to what was just said'
+// Example:
+// Morgan|ScriptQueue|Though I suppose we could always settle it with a little *wrestling*.//Volkur//
+// (a funcrec event comes, which just write  something into context. )
+// Morgan|ScriptQueue|Wrestling, you say? Now *that* sounds like a fun way to get acquainted.//Vixi Talax//
+//
+$TEMPLATE_DIALOG=" Write {$GLOBALS["HERIKA_NAME"]}'s next dialogue line." . 
+" Avoid narrations, be original, creative, knowledgeable, use your own thoughts. " . 
+" Review dialogue history to focus on conversation topic and to avoid repeating sentences and phraseology from previous dialog lines." . 
+" {$GLOBALS["HERIKA_NAME"]}'s next dialogue lines will use this format \"{$GLOBALS["HERIKA_NAME"]}: ";
+
+// To keep the original one
+// $TEMPLATE_DIALOG="write {$GLOBALS["HERIKA_NAME"]}'s next dialogue line using this format \"{$GLOBALS["HERIKA_NAME"]}: ";
+
+
+
+if (@is_array($GLOBALS["TTS"]["AZURE"]["validMoods"]) &&  sizeof($GLOBALS["TTS"]["AZURE"]["validMoods"])>0) 
+    if ($GLOBALS["TTSFUNCTION"]=="azure")
+        $TEMPLATE_DIALOG.="(optional way of speaking from this list [" . implode(",", $GLOBALS["TTS"]["AZURE"]["validMoods"]) . "])";
+
+$TEMPLATE_DIALOG.=" \". \n";
+
+
+if (isset($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["ENABLED"]) && $GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["ENABLED"]) {
+    $GLOBALS["MEMORY_STATEMENT"]=".USE #MEMORY.";
+} else
+    $GLOBALS["MEMORY_STATEMENT"]="";
+
+
+if ($GLOBALS["FUNCTIONS_ARE_ENABLED"]) {
+    //$TEMPLATE_ACTION="call a function to control {$GLOBALS["HERIKA_NAME"]} or";
+    //$TEMPLATE_ACTION=".USE TOOL CALLING.";    // WIP
+		$TEMPLATE_ACTION="";
+} else {
+    $TEMPLATE_ACTION="";
+}
+
+// Database Prompt (Dialogue should all be one)
+/* aren't these redundant?
+if (DMgetCurrentModel()=="openaijson") {
+    $TEMPLATE_DIALOG="write {$GLOBALS["HERIKA_NAME"]}'s next dialogue lines. Avoid narrations.";
+    $TEMPLATE_ACTION="";
+}
+
+if (DMgetCurrentModel()=="google_openaijson") {
+    $TEMPLATE_DIALOG="write {$GLOBALS["HERIKA_NAME"]}'s next dialogue lines. Avoid narrations.";
+    $TEMPLATE_ACTION="";
+}
+
+if (DMgetCurrentModel()=="koboldcppjson") {
+    $TEMPLATE_DIALOG="write {$GLOBALS["HERIKA_NAME"]}'s next dialogue lines. Avoid narrations.";
+    $TEMPLATE_ACTION="";
+}
+
+if (DMgetCurrentModel()=="openrouterjson") {
+    $TEMPLATE_DIALOG="write {$GLOBALS["HERIKA_NAME"]}'s next dialogue lines. Avoid narrations.";
+    $TEMPLATE_ACTION="";
+}
+  */
+  
+requireFilesRecursively(__DIR__.DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR."ext".DIRECTORY_SEPARATOR,"dialogue_prompt.php");
+
+?>
