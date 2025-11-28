@@ -1,9 +1,8 @@
 
 **/*Zone.Identifier
 /ext/*
+!/ext/minai_plugin
 !/ext/herika_heal
-!/ext/time_awareness
-!/ext/xLifeLink_plugin
 !/ext/generic_installer.php
 /log
 /soundcache
@@ -20,7 +19,10 @@ ui/index_custom.php
 ui/tmpl/navbar_custom.php
 *.php~
 *.html~
+*.xml~
 *.json~
 *.php_???
 *.html_???
+*.xml_???
 *.json_???
+*.sh_???

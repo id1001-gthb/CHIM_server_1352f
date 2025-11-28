@@ -1,0 +1,1294 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Personalities</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #4CAF50;
+            --secondary-color: #2196F3;
+            --background-dark: #1a1a1a;
+            --background-light: #2d2d2d;
+            --text-color: #e0e0e0;
+            --border-color: #404040;
+            --success-color: #40c057;
+            --error-color: #f44336;
+            --warning-color: #ffc107;
+            --info-color: #4dabf7;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: radial-gradient(circle at center, var(--background-light) 0%, var(--background-dark) 100%);
+            color: var(--text-color);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 95vw;
+            margin: 20px auto;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--text-color);
+            margin-bottom: 30px;
+            font-size: 2.5rem;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .nav-panel {
+            background-color: var(--background-light);
+            padding: 15px;
+            text-align: center;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(4px);
+        }
+
+        .nav-panel a {
+            display: inline-block;
+            color: var(--text-color);
+            text-decoration: none;
+            font-size: 1.1rem;
+            margin: 0 20px;
+            padding: 10px 20px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            background: linear-gradient(135deg,
+                rgba(255, 255, 255, 0.1) 0%,
+                rgba(255, 255, 255, 0.05) 100%
+            );
+            border: 1px solid var(--border-color);
+        }
+
+        .nav-panel a:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .personality-section {
+            background: rgba(45, 45, 45, 0.4);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            backdrop-filter: blur(4px);
+        }
+
+        .personality-section h3 {
+            color: var(--text-color);
+            margin-top: 0;
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        input[type="text"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 12px;
+            background-color: var(--background-dark);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        input[type="text"]:focus,
+        select:focus,
+        textarea:focus {
+            border-color: var(--primary-color);
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+        }
+
+        textarea {
+            min-height: 150px;
+            resize: vertical;
+        }
+
+        button {
+            padding: 8px 16px;
+            background: linear-gradient(135deg,
+                rgba(255, 255, 255, 0.1) 0%,
+                rgba(255, 255, 255, 0.05) 100%
+            );
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        button.primary {
+            background: linear-gradient(135deg,
+                rgba(76, 175, 80, 0.2) 0%,
+                rgba(76, 175, 80, 0.3) 100%
+            );
+            border-color: var(--primary-color);
+        }
+
+        .generate-section {
+            margin-top: 30px;
+        }
+
+        #generateError {
+            color: var(--error-color);
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            background-color: rgba(244, 67, 54, 0.1);
+            border: 1px solid var(--error-color);
+            display: none;
+        }
+
+        details {
+            margin-top: 15px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        summary {
+            cursor: pointer;
+            padding: 10px;
+            color: var(--text-color);
+            font-weight: 500;
+        }
+
+        summary:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+        }
+
+        #rawResponse {
+            padding: 15px;
+            background: var(--background-dark);
+            border-radius: 4px;
+            margin-top: 10px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 20px;
+                padding: 20px;
+            }
+
+            .nav-panel a {
+                display: block;
+                margin: 10px 0;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Add these styles to maintain functionality */
+        .entry-row {
+            padding: 10px;
+            margin-bottom: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 15px;
+        }
+
+        .entry-content {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 6px;
+        }
+
+        .entry-field {
+            display: flex;
+            flex-direction: column;
+            font-size: 0.9rem;
+        }
+
+        .entry-label {
+            font-size: 0.8rem;
+            color: var(--text-color);
+            opacity: 0.8;
+            margin-bottom: 2px;
+        }
+
+        .entry-value {
+            padding: 6px;
+            background-color: var(--background-dark);
+            border-radius: 4px;
+            min-height: 18px;
+            line-height: 1.2;
+        }
+
+        .entry-value[contenteditable="true"] {
+            border: 1px solid var(--border-color);
+            background-color: rgba(0, 0, 0, 0.2);
+        }
+
+        .entry-controls {
+            display: flex;
+            gap: 10px;
+            align-items: start;
+        }
+
+        .pagination-controls {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .pagination-info {
+            text-align: center;
+            margin-top: 10px;
+            color: var(--text-color);
+            opacity: 0.8;
+        }
+
+        .tooltip {
+            position: fixed;
+            background-color: var(--background-light);
+            color: var(--text-color);
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            display: none;
+            z-index: 1000;
+            pointer-events: none;
+        }
+
+        .deleteBtn {
+            background: linear-gradient(135deg,
+                rgba(244, 67, 54, 0.2) 0%,
+                rgba(244, 67, 54, 0.3) 100%
+            );
+            border-color: var(--error-color);
+        }
+
+        .editBtn {
+            background: linear-gradient(135deg,
+                rgba(33, 150, 243, 0.2) 0%,
+                rgba(33, 150, 243, 0.3) 100%
+            );
+            border-color: var(--info-color);
+        }
+
+        .saveBtn {
+            background: linear-gradient(135deg,
+                rgba(76, 175, 80, 0.2) 0%,
+                rgba(76, 175, 80, 0.3) 100%
+            );
+            border-color: var(--success-color);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .resetBtn {
+            background: linear-gradient(135deg,
+                rgba(255, 152, 0, 0.1) 0%,
+                rgba(255, 152, 0, 0.2) 100%
+            );
+            border-color: var(--warning-color);
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .section-header h3 {
+            margin: 0;
+        }
+
+        .search-container {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .search-info {
+            color: var(--text-color);
+            opacity: 0.8;
+        }
+
+        .search-container {
+            margin-bottom: 20px;
+        }
+
+        .search-container input {
+            width: 100%;
+            padding: 12px;
+            font-size: 1rem;
+        }
+
+        .search-info {
+            font-size: 0.8rem;
+            color: var(--text-color);
+            opacity: 0.7;
+            margin-top: 4px;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .header-controls input {
+            width: 300px;
+            padding: 8px 12px;
+            font-size: 0.9rem;
+            background-color: var(--background-dark);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            border-radius: 6px;
+        }
+
+        .search-info {
+            font-size: 0.8rem;
+            color: var(--text-color);
+            opacity: 0.7;
+            margin: 4px 0 15px 0;
+        }
+
+        .collapsible {
+            margin-bottom: 20px;
+        }
+
+        .collapsible summary {
+            padding: 15px;
+            font-size: 1.1rem;
+            font-weight: 500;
+            cursor: pointer;
+            user-select: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg,
+                rgba(255, 255, 255, 0.1) 0%,
+                rgba(255, 255, 255, 0.05) 100%
+            );
+        }
+
+        .collapsible summary:hover {
+            background: linear-gradient(135deg,
+                rgba(255, 255, 255, 0.15) 0%,
+                rgba(255, 255, 255, 0.08) 100%
+            );
+        }
+
+        .collapsible-content {
+            padding: 20px 0;
+        }
+
+        .subsection {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .subsection:last-child {
+            margin-bottom: 0;
+        }
+
+        .exportBtn {
+            background: linear-gradient(135deg,
+                rgba(33, 150, 243, 0.1) 0%,
+                rgba(33, 150, 243, 0.2) 100%
+            );
+            border-color: var(--info-color);
+        }
+
+        .importBtn {
+            background: linear-gradient(135deg,
+                rgba(76, 175, 80, 0.1) 0%,
+                rgba(76, 175, 80, 0.2) 100%
+            );
+            border-color: var(--success-color);
+            cursor: pointer;
+            padding: 8px 16px;
+            border-radius: 6px;
+            display: inline-block;
+        }
+
+        .importBtn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Manage NPC Sex Personalities</h1>
+        
+        <div class="nav-panel">
+            <a href="index.html">Return to Home</a>
+            <a href="https://github.com/MinLL/MinAI">Documentation</a>
+        </div>
+
+        <!-- Replace the Generate and Add sections with this collapsible version -->
+        <details class="personality-section collapsible">
+            <summary>Generate & Add New Personalities</summary>
+            <div class="collapsible-content">
+                <!-- Generate Section -->
+                <div class="subsection">
+                    <h3>Generate New Personality</h3>
+                    <div class="form-grid">
+                        <textarea id="generatePrompt" placeholder="Describe the personality you want to generate (e.g., 'A flirtatious tavern maid who loves to tease customers')"></textarea>
+                    </div>
+                    <details>
+                        <summary>Raw response from LLM text</summary>
+                        <div id="rawResponse"></div>
+                    </details>
+                    <div id="generateError"></div>
+                    <div class="button-group">
+                        <button type="button" onclick="generatePersonality()" class="primary">Generate</button>
+                        <button type="button" onclick="resetForm()" class="resetBtn">Reset Form</button>
+                    </div>
+                </div>
+
+                <!-- Add New Personality -->
+                <div class="subsection">
+                    <h3>Add New Personality</h3>
+                    <form id="newEntryForm">
+                        <div class="form-grid">
+                            <input type="text" id="newId" name="id" placeholder="ID" required>
+                            <input type="text" id="newOrientation" name="orientation" placeholder="Orientation" required>
+                            <select id="speakStyleDuringSex" name="speakStyle" required>
+                                <!-- Options are populated by JavaScript -->
+                            </select>
+                            <input type="text" id="newSexFantasies" name="sexFantasies" placeholder="Sex Fantasies (comma separated)">
+                        </div>
+                        <div id="speakStyleDuringSexError"></div>
+                        <button type="submit" class="primary">Add Personality</button>
+                    </form>
+                </div>
+            </div>
+        </details>
+
+        <!-- Existing Entries -->
+        <div class="personality-section">
+            <div class="section-header">
+                <h3>Existing Personalities</h3>
+                <div class="header-controls">
+                    <input type="text" id="searchInput" placeholder="Search personalities..." onkeyup="filterEntries()">
+                    <button onclick="exportToCSV()" class="exportBtn">Export CSV</button>
+                    <label for="importCSV" class="importBtn">
+                        Import CSV
+                        <input type="file" id="importCSV" accept=".csv" onchange="importFromCSV(this)" style="display: none;">
+                    </label>
+                    <button onclick="resetPersonalities()" class="resetBtn">Reset Personalities</button>
+                </div>
+            </div>
+            <div class="search-info">Search by ID, orientation, behavior, fantasies, etc...</div>
+            <div id="entriesContainer">
+                <!-- Entries will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <div id="tooltip" class="tooltip"></div>
+
+    <script>
+        let currentPage = 1;
+        const rowsPerPage = 10;
+        let data = [];
+        let filteredData = [];
+        let editedRow = {};  // Store in-line edited data
+        let originalRowData = {};  // Store original data for fallback
+
+        window.onload = function () {
+            loadTable();
+        };
+
+        // Function to load table data from the backend
+        function loadTable() {
+            fetch('api/personalities.php')
+                .then(response => response.json())
+                .then(result => {
+                    console.log('Load table response:', result); // Debug log
+                    if (result.status === 'success') {
+                        data = result.data;
+                        filteredData = data.sort((a, b) => a.id.localeCompare(b.id));
+                        renderEntries();
+                    } else {
+                        console.error('Failed to load data:', result.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading data:', error);
+                    const errEl = document.getElementById('generateError');
+                    errEl.style.display = 'block';
+                    errEl.innerHTML = 'Failed to load personalities: ' + error.message;
+                });
+        }
+
+        const speakStyleDuringSexOptions = ["dirty talk", "sweet talk", "sensual whispering", "dominant talk", "submissive talk", "teasing talk", "erotic storytelling", "breathless gasps", "sultry seduction", "playful banter"];
+
+        const speakStyleSelect = document.getElementById('speakStyleDuringSex')
+
+        speakStyleDuringSexOptions.forEach(opt => {
+            // Create a new option element
+            const option = document.createElement('option');
+
+            // Set the value and text of the option
+            option.value = opt;
+            option.text = opt;
+
+            // Append the option to the select element
+            speakStyleSelect.appendChild(option);
+        })
+
+        // Function to render the table based on the current page
+        function renderTable() {
+            const tableElem = document.getElementById('dataTable');
+            tableElem.innerHTML = '';
+
+            if (filteredData.length > 0) {
+                const headers = ['ID', 'Orientation', 'Relation Style', 'Positions', 'Speak style', 'Behavior', 'Fantasies', 'Traits', 'Actions'];
+                const headerRow = document.createElement('tr');
+                headers.forEach(header => {
+                    const th = document.createElement('th');
+                    th.innerText = header;
+                    th.onclick = () => sortTable(header.toLowerCase());
+                    headerRow.appendChild(th);
+                });
+                tableElem.appendChild(headerRow);
+
+                const startIndex = (currentPage - 1) * rowsPerPage;
+                const endIndex = startIndex + rowsPerPage;
+                const pageData = filteredData.slice(startIndex, endIndex);
+
+                pageData.forEach(row => {
+                    const personality = JSON.parse(row.x_personality);
+                    const tr = document.createElement('tr');
+
+                    // Store original data for the row to use as fallback
+                    originalRowData[row.id] = {
+                        orientation: personality.orientation,
+                        sexFantasies: personality.sexFantasies.join(", "),
+                        sexualBehavior: personality.sexualBehavior.join(", "),
+                        relationshipStyle: personality.relationshipStyle,
+                        sexPersonalityTraits: personality.sexPersonalityTraits.join(", "),
+                        preferredSexPositions: personality.preferredSexPositions.join(", ")
+                    };
+
+                    tr.innerHTML = `
+                        <td contenteditable="true" onblur="editRow(this, 'id', '${row.id}')">${row.id}</td>
+                        <td contenteditable="true" onblur="editRow(this, 'orientation', '${row.id}')">${personality.orientation}</td>
+                        <td contenteditable="true" onblur="editRow(this, 'relationshipStyle', '${row.id}')">${personality.relationshipStyle}</td>
+                        <td contenteditable="true" onblur="editRow(this, 'preferredSexPositions', '${row.id}')">${personality.preferredSexPositions.join(", ")}</td>
+                        <td><select style="width: 120px;" onchange="editRow(this, 'speakStyleDuringSex', '${row.id}')">${speakStyleDuringSexOptions.map(option => `<option value="${option}" ${personality.speakStyleDuringSex === option ? 'selected' : ''}>${option}</option>`)}</select></td>
+                        <td contenteditable="true" onblur="editRow(this, 'sexualBehavior', '${row.id}')">${personality.sexualBehavior.join(", ")}</td>
+                        <td contenteditable="true" onblur="editRow(this, 'sexFantasies', '${row.id}')">${personality.sexFantasies.join(", ")}</td>
+                        <td contenteditable="true" onblur="editRow(this, 'sexPersonalityTraits', '${row.id}')">${personality.sexPersonalityTraits.join(", ")}</td>
+                    `;
+
+                    const actionTd = document.createElement('td');
+                    const saveBtn = document.createElement('button');
+                    saveBtn.innerText = 'Save';
+                    saveBtn.onclick = () => saveRow(row.id);
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.innerText = 'Delete';
+                    deleteBtn.onclick = () => deleteRow(row.id);
+                    actionTd.appendChild(saveBtn);
+                    actionTd.appendChild(deleteBtn);
+                    tr.appendChild(actionTd);
+
+                    tableElem.appendChild(tr);
+                });
+            }
+        }
+
+        // Function to edit an in-line row
+        function editRow(el, field, id) {
+            let value = ''
+            if (field === 'speakStyleDuringSex') {
+                value = el.value
+            } else {
+                value = el.innerText.trim();
+            }
+
+            if (!editedRow[id]) {
+                editedRow[id] = {};
+            }
+            editedRow[id][field] = value;
+        }
+
+        // Function to save the edited row to the backend
+        function saveRow(id) {
+            // Get the updated data or fallback to the original data if not edited
+            const updatedData = {
+                id: editedRow[id]?.id || id,
+                orientation: editedRow[id]?.orientation || originalRowData[id].orientation,
+                sexFantasies: (editedRow[id]?.sexFantasies || originalRowData[id].sexFantasies).split(',').map(f => f.trim()),
+                sexualBehavior: (editedRow[id]?.sexualBehavior || originalRowData[id].sexualBehavior).split(',').map(b => b.trim()),
+                relationshipStyle: editedRow[id]?.relationshipStyle || originalRowData[id].relationshipStyle,
+                sexPersonalityTraits: (editedRow[id]?.sexPersonalityTraits || originalRowData[id].sexPersonalityTraits).split(',').map(t => t.trim()),
+                preferredSexPositions: (editedRow[id]?.preferredSexPositions || originalRowData[id].preferredSexPositions).split(',').map(p => p.trim()),
+                speakStyleDuringSex: editedRow[id]?.speakStyleDuringSex || originalRowData[id].speakStyleDuringSex,
+            };
+
+            fetch('api/personalities.php', {
+                method: 'PUT',
+                body: new URLSearchParams({
+                    table: 'minai_x_personalities',
+                    id: id,
+                    data: JSON.stringify(updatedData)
+                })
+            })
+                .then(response => response.json())
+                .then(result => {
+                    alert(result.status === 'success' ? 'Data saved!' : 'Failed to save data');
+                    loadTable();
+                });
+        }
+
+        // Function to delete a row from the backend
+        function deleteRow(id) {
+            fetch('api/personalities.php', {
+                method: 'DELETE',
+                body: new URLSearchParams({
+                    table: 'minai_x_personalities',
+                    id: id
+                })
+            })
+                .then(response => response.json())
+                .then(result => {
+                    alert(result.status === 'success' ? 'Data deleted!' : 'Failed to delete data');
+                    loadTable();
+                });
+        }
+
+        // Function to search for personalities in the table
+        function searchTable() {
+            const searchText = document.getElementById('searchInput').value.toLowerCase();
+            filteredData = data.filter(row => {
+                const personality = JSON.parse(row.x_personality);
+                return (
+                    row.id.toLowerCase().includes(searchText) ||
+                    personality.orientation.toLowerCase().includes(searchText) ||
+                    personality.sexFantasies.join(", ").toLowerCase().includes(searchText) ||
+                    personality.sexualBehavior.join(", ").toLowerCase().includes(searchText) ||
+                    personality.relationshipStyle.toLowerCase().includes(searchText) ||
+                    personality.sexPersonalityTraits.join(", ").toLowerCase().includes(searchText) ||
+                    personality.preferredSexPositions.join(", ").toLowerCase().includes(searchText)
+                );
+            });
+            currentPage = 1; // Reset to first page when searching
+            updatePagination();
+            renderTable();
+        }
+
+        // Function to sort the table by column
+        function sortTable(column) {
+            filteredData.sort((a, b) => {
+                const personalityA = JSON.parse(a.x_personality);
+                const personalityB = JSON.parse(b.x_personality);
+
+                const valA = column === 'id' ? a.id : personalityA[column];
+                const valB = column === 'id' ? b.id : personalityB[column];
+
+                if (valA < valB) return -1;
+                if (valA > valB) return 1;
+                return 0;
+            });
+            renderTable();
+        }
+
+        // Pagination Functions
+        function nextPage() {
+            const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderTable();
+            }
+        }
+
+        function prevPage() {
+            if (currentPage > 1) {
+                currentPage--;
+                renderTable();
+            }
+        }
+
+        // Function to create a new personality entry
+        function createNewEntry() {
+            const formData = new FormData(document.getElementById('newEntryForm'));
+            const newEntryData = {
+                id: formData.get('id'),
+                orientation: formData.get('orientation'),
+                sexFantasies: formData.get('sexFantasies').split(',').map(f => f.trim()),
+                sexualBehavior: formData.get('sexualBehavior').split(',').map(b => b.trim()),
+                relationshipStyle: formData.get('relationshipStyle'),
+                sexPersonalityTraits: formData.get('sexPersonalityTraits').split(',').map(t => t.trim()),
+                preferredSexPositions: formData.get('preferredSexPositions').split(',').map(p => p.trim()),
+                speakStyleDuringSex: formData.get('speakStyleDuringSex')
+            };
+
+            fetch('api/personalities.php', {
+                method: 'POST',
+                body: new URLSearchParams({
+                    table: 'minai_x_personalities',
+                    data: JSON.stringify(newEntryData)
+                })
+            })
+                .then(response => response.json())
+                .then(result => {
+                    alert(result.status === 'success' ? 'New entry created!' : 'Failed to create entry');
+                    loadTable();
+                });
+        }
+
+        // Confirmation popup for resetting personalities
+        function confirmResetPersonalities() {
+            if (confirm("Are you sure you want to reset all personalities? This action cannot be undone.")) {
+                resetPersonalities();
+            }
+        }
+
+        // Function to reset all personalities
+        function resetPersonalities() {
+            if (confirm('Are you sure you want to reset all personalities to their default values? This cannot be undone.')) {
+                fetch('api/main.php?endpoint=reset_personalities', {
+                    method: 'POST'
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.message === 'Success') {
+                        loadTable(); // Reload the table after reset
+                    } else {
+                        const errEl = document.getElementById('generateError');
+                        errEl.style.display = 'block';
+                        errEl.innerHTML = result.message || 'Failed to reset personalities';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error resetting personalities:', error);
+                    const errEl = document.getElementById('generateError');
+                    errEl.style.display = 'block';
+                    errEl.innerHTML = 'Failed to reset personalities: ' + error.message;
+                });
+            }
+        }
+
+        function openTab(event, tabId) {
+            // Hide all tab content
+            const contents = document.querySelectorAll('.tab-content-item');
+            contents.forEach(content => content.classList.remove('active'));
+
+            // Remove active class from all tabs
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => tab.classList.remove('active'));
+
+            // Show the selected tab content
+            document.getElementById(tabId).classList.add('active');
+            // Set the clicked tab to active
+            event.currentTarget.classList.add('active');
+        }
+
+        function generatePersonality() {
+            const prompt = document.getElementById('generatePrompt').value;
+            const errEl = document.getElementById('generateError');
+            
+            if (!prompt) {
+                errEl.style.display = 'block';
+                errEl.innerHTML = 'Please enter a description for the personality';
+                return;
+            }
+
+            fetch('api/generateSexPersonality.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    descriptionPersonality: prompt
+                })
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.status === 'error') {
+                    errEl.style.display = 'block';
+                    errEl.innerHTML = result.message;
+                } else {
+                    errEl.style.display = 'none';
+                    // Show the raw response
+                    document.getElementById('rawResponse').innerHTML = result.data;
+
+                    try {
+                        // Extract JSON from the markdown-formatted response
+                        const jsonMatch = result.data.match(/\{[\s\S]*\}/);
+                        if (!jsonMatch) {
+                            throw new Error('No JSON object found in response');
+                        }
+                        
+                        const personality = JSON.parse(jsonMatch[0]);
+                        
+                        // Auto-fill the new entry form with generated data
+                        document.getElementById('newId').value = generateUniqueId();
+                        document.getElementById('newOrientation').value = personality.orientation;
+                        document.getElementById('speakStyleDuringSex').value = personality.speakStyleDuringSex;
+                        document.getElementById('newSexFantasies').value = personality.sexFantasies.join(', ');
+                        
+                        // Show success message
+                        errEl.style.display = 'block';
+                        errEl.style.color = 'var(--success-color)';
+                        errEl.innerHTML = 'Personality generated successfully! You can now edit the values and click "Add Personality" to save it.';
+                    } catch(e) {
+                        errEl.style.display = 'block';
+                        errEl.style.color = 'var(--error-color)';
+                        errEl.innerHTML = `Failed to parse generated personality: ${e.message}`;
+                    }
+                }
+            })
+            .catch(error => {
+                errEl.style.display = 'block';
+                errEl.innerHTML = `Error generating personality: ${error.message}`;
+            });
+        }
+
+        // Helper function to generate a unique ID
+        function generateUniqueId() {
+            return 'npc_' + Math.random().toString(36).substr(2, 9);
+        }
+
+        function renderEntries() {
+            const container = document.getElementById('entriesContainer');
+            container.innerHTML = '';
+
+            const startIndex = (currentPage - 1) * rowsPerPage;
+            const endIndex = startIndex + rowsPerPage;
+            const pageData = filteredData.slice(startIndex, endIndex);
+
+            pageData.forEach(entry => {
+                // Parse the x_personality JSON
+                const personality = JSON.parse(entry.x_personality);
+                
+                const entryDiv = document.createElement('div');
+                entryDiv.className = 'entry-row';
+                entryDiv.innerHTML = `
+                    <div class="entry-content">
+                        <div class="entry-field">
+                            <span class="entry-label">ID</span>
+                            <div class="entry-value" data-field="id" data-value="${entry.id}">${entry.id}</div>
+                        </div>
+                        <div class="entry-field">
+                            <span class="entry-label">Orientation</span>
+                            <div class="entry-value" data-field="orientation">${personality.orientation}</div>
+                        </div>
+                        <div class="entry-field">
+                            <span class="entry-label">Relationship</span>
+                            <div class="entry-value" data-field="relationshipStyle">${personality.relationshipStyle}</div>
+                        </div>
+                        <div class="entry-field">
+                            <span class="entry-label">Speak Style</span>
+                            <div class="entry-value" data-field="speakStyleDuringSex">${personality.speakStyleDuringSex}</div>
+                        </div>
+                        <div class="entry-field">
+                            <span class="entry-label">Positions</span>
+                            <div class="entry-value" data-field="preferredSexPositions">${Array.isArray(personality.preferredSexPositions) ? personality.preferredSexPositions.join(', ') : personality.preferredSexPositions}</div>
+                        </div>
+                        <div class="entry-field">
+                            <span class="entry-label">Behavior</span>
+                            <div class="entry-value" data-field="sexualBehavior">${Array.isArray(personality.sexualBehavior) ? personality.sexualBehavior.join(', ') : personality.sexualBehavior}</div>
+                        </div>
+                        <div class="entry-field">
+                            <span class="entry-label">Fantasies</span>
+                            <div class="entry-value" data-field="sexFantasies">${Array.isArray(personality.sexFantasies) ? personality.sexFantasies.join(', ') : personality.sexFantasies}</div>
+                        </div>
+                        <div class="entry-field">
+                            <span class="entry-label">Traits</span>
+                            <div class="entry-value" data-field="sexPersonalityTraits">${Array.isArray(personality.sexPersonalityTraits) ? personality.sexPersonalityTraits.join(', ') : personality.sexPersonalityTraits}</div>
+                        </div>
+                    </div>
+                    <div class="entry-controls">
+                        <button class="editBtn" onclick="editEntry('${entry.id}')">Edit</button>
+                        <button class="deleteBtn" onclick="deleteEntry('${entry.id}')">Delete</button>
+                    </div>
+                `;
+                container.appendChild(entryDiv);
+            });
+
+            // Add pagination controls
+            const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+            container.innerHTML += `
+                <div class="pagination-controls">
+                    <button onclick="changePage(-1)" ${currentPage === 1 ? 'disabled' : ''}>Previous</button>
+                    <button onclick="changePage(1)" ${currentPage === totalPages ? 'disabled' : ''}>Next</button>
+                </div>
+                <div class="pagination-info">
+                    Page ${currentPage} of ${totalPages} (${filteredData.length} total entries)
+                </div>
+            `;
+        }
+
+function resetForm() {
+    // Reset all form fields
+    document.getElementById('newId').value = '';
+    document.getElementById('newOrientation').value = '';
+    document.getElementById('speakStyleDuringSex').value = '';
+    document.getElementById('newSexFantasies').value = '';
+    
+    // Clear any error messages
+    document.getElementById('generateError').style.display = 'none';
+    document.getElementById('speakStyleDuringSexError').style.display = 'none';
+    
+    // Clear the raw response
+    document.getElementById('rawResponse').innerHTML = '';
+    
+    // Clear the generate prompt
+    document.getElementById('generatePrompt').value = '';
+}
+
+function changePage(direction) {
+    const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+    const newPage = currentPage + direction;
+    
+    if (newPage >= 1 && newPage <= totalPages) {
+        currentPage = newPage;
+        renderEntries();
+    }
+}
+
+// Add this function to handle sorting if needed
+function sortEntries(field) {
+    filteredData.sort((a, b) => {
+        const aVal = a[field] || '';
+        const bVal = b[field] || '';
+        return aVal.localeCompare(bVal);
+    });
+    currentPage = 1;
+    renderEntries();
+}
+
+
+function filterEntries() {
+    const searchText = document.getElementById('searchInput').value.toLowerCase();
+    
+    filteredData = data.filter(row => {
+        const personality = JSON.parse(row.x_personality);
+        return (
+            row.id.toLowerCase().includes(searchText) ||
+            personality.orientation.toLowerCase().includes(searchText) ||
+            personality.relationshipStyle.toLowerCase().includes(searchText) ||
+            personality.speakStyleDuringSex.toLowerCase().includes(searchText) ||
+            (personality.preferredSexPositions || []).join(',').toLowerCase().includes(searchText) ||
+            (personality.sexualBehavior || []).join(',').toLowerCase().includes(searchText) ||
+            (personality.sexFantasies || []).join(',').toLowerCase().includes(searchText) ||
+            (personality.sexPersonalityTraits || []).join(',').toLowerCase().includes(searchText)
+        );
+    });
+    
+    currentPage = 1; // Reset to first page when filtering 
+     
+    renderEntries(); // --- 
+     
+} 
+
+function editEntry(id) {
+    const entryDiv = document.querySelector(`.entry-row .entry-value[data-field="id"][data-value="${id}"]`).closest('.entry-row');
+    const editBtn = entryDiv.querySelector('.editBtn');
+    
+    if (entryDiv.classList.contains('editing')) {
+        // Save changes
+        const updatedData = {
+            id: id,
+            x_personality: {
+                orientation: entryDiv.querySelector('[data-field="orientation"]').textContent,
+                relationshipStyle: entryDiv.querySelector('[data-field="relationshipStyle"]').textContent,
+                speakStyleDuringSex: entryDiv.querySelector('[data-field="speakStyleDuringSex"]').textContent,
+                preferredSexPositions: entryDiv.querySelector('[data-field="preferredSexPositions"]').textContent.split(',').map(p => p.trim()),
+                sexualBehavior: entryDiv.querySelector('[data-field="sexualBehavior"]').textContent.split(',').map(b => b.trim()),
+                sexFantasies: entryDiv.querySelector('[data-field="sexFantasies"]').textContent.split(',').map(f => f.trim()),
+                sexPersonalityTraits: entryDiv.querySelector('[data-field="sexPersonalityTraits"]').textContent.split(',').map(t => t.trim())
+            }
+        };
+
+        fetch('api/personalities.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                table: 'minai_x_personalities',
+                data: JSON.stringify(updatedData),
+                id: id,
+                action: 'update'
+            })
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.status === 'success') {
+                loadTable();
+            } else {
+                console.error('Failed to update:', result.message);
+            }
+        });
+
+        // Remove editable state
+        entryDiv.querySelectorAll('.entry-value').forEach(el => {
+            el.contentEditable = false;
+            el.style = '';
+        });
+        entryDiv.classList.remove('editing');
+        editBtn.textContent = 'Edit';
+    } else {
+        // Enable editing
+        entryDiv.querySelectorAll('.entry-value:not([data-field="id"])').forEach(el => {
+            makeEditable(el);
+        });
+        entryDiv.classList.add('editing');
+        editBtn.textContent = 'Save';
+    }
+}
+
+function deleteEntry(id) {
+    if (confirm('Are you sure you want to delete this personality?')) {
+        fetch('api/personalities.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                table: 'minai_x_personalities',
+                id: id,
+                action: 'delete'
+            })
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.status === 'success') {
+                loadTable();
+            } else {
+                console.error('Failed to delete:', result.message);
+            }
+        });
+    }
+}
+
+function makeEditable(element) {
+    element.contentEditable = true;
+    element.style.backgroundColor = 'rgba(0, 0, 0, 0.2)';
+    element.style.padding = '4px 8px';
+    element.style.borderRadius = '4px';
+    element.style.border = '1px solid var(--border-color)';
+}
+
+function exportToCSV() {
+    // Convert the data to CSV format
+    const csvRows = [];
+    
+    // Add header row
+    csvRows.push(['ID', 'Orientation', 'Relationship Style', 'Speak Style', 
+                  'Preferred Positions', 'Sexual Behavior', 'Fantasies', 'Personality Traits']);
+    
+    // Add data rows
+    data.forEach(entry => {
+        const personality = JSON.parse(entry.x_personality);
+        csvRows.push([
+            entry.id,
+            personality.orientation,
+            personality.relationshipStyle,
+            personality.speakStyleDuringSex,
+            Array.isArray(personality.preferredSexPositions) ? personality.preferredSexPositions.join('|') : personality.preferredSexPositions,
+            Array.isArray(personality.sexualBehavior) ? personality.sexualBehavior.join('|') : personality.sexualBehavior,
+            Array.isArray(personality.sexFantasies) ? personality.sexFantasies.join('|') : personality.sexFantasies,
+            Array.isArray(personality.sexPersonalityTraits) ? personality.sexPersonalityTraits.join('|') : personality.sexPersonalityTraits
+        ]);
+    });
+    
+    // Convert to CSV string
+    const csvString = csvRows.map(row => 
+        row.map(cell => `"${cell.replace(/"/g, '""')}"`)
+           .join(',')
+    ).join('\n');
+    
+    // Create and trigger download
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    if (navigator.msSaveBlob) { // IE 10+
+        navigator.msSaveBlob(blob, 'personalities.csv');
+    } else {
+        link.href = URL.createObjectURL(blob);
+        link.download = 'personalities.csv';
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+}
+
+function importFromCSV(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const text = e.target.result;
+        const rows = text.split('\n').map(row => {
+            // Handle quoted CSV properly
+            const matches = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
+            if (!matches) return [];
+            return matches.map(cell => cell.replace(/^"(.*)"$/, '$1').replace(/""/g, '"'));
+        });
+        
+        // Skip header row
+        const importedData = rows.slice(1).filter(row => row.length >= 8).map(row => ({
+            id: row[0],
+            x_personality: JSON.stringify({
+                orientation: row[1],
+                relationshipStyle: row[2],
+                speakStyleDuringSex: row[3],
+                preferredSexPositions: row[4].split('|'),
+                sexualBehavior: row[5].split('|'),
+                sexFantasies: row[6].split('|'),
+                sexPersonalityTraits: row[7].split('|')
+            })
+        }));
+
+        if (importedData.length === 0) {
+            alert('No valid data found in CSV file');
+            return;
+        }
+
+        if (confirm(`Are you sure you want to import ${importedData.length} personalities? This will add to existing entries.`)) {
+            importPersonalities(importedData);
+        }
+    };
+    reader.readAsText(file);
+}
+
+function importPersonalities(importedData) {
+    fetch('api/personalities.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+            action: 'import',
+            data: JSON.stringify(importedData)
+        })
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.status === 'success') {
+            alert('Import successful!');
+            loadTable();
+        } else {
+            alert('Import failed: ' + (result.message || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        alert('Import failed: ' + error.message);
+    });
+}
+
+// Add this after the existing script tag
+document.getElementById('newEntryForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const personality = {
+        id: document.getElementById('newId').value,
+        x_personality: {
+            orientation: document.getElementById('newOrientation').value,
+            speakStyleDuringSex: document.getElementById('speakStyleDuringSex').value,
+            sexFantasies: document.getElementById('newSexFantasies').value.split(',').map(f => f.trim()).filter(f => f),
+            sexualBehavior: [],
+            relationshipStyle: "casual",
+            sexPersonalityTraits: [],
+            preferredSexPositions: []
+        }
+    };
+
+    // Add validation
+    if (!personality.id || !personality.x_personality.orientation || !personality.x_personality.speakStyleDuringSex) {
+        alert('Please fill in all required fields');
+        return;
+    }
+
+    const errEl = document.getElementById('generateError');
+    errEl.style.display = 'none';
+
+    fetch('api/personalities.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+            action: 'update',
+            id: personality.id,
+            data: JSON.stringify(personality)
+        })
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.status === 'success') {
+            errEl.style.display = 'block';
+            errEl.style.color = 'var(--success-color)';
+            errEl.innerHTML = result.message || 'New personality added successfully!';
+            resetForm();
+            loadTable();
+        } else {
+            console.error('Server error:', result);
+            errEl.style.display = 'block';
+            errEl.style.color = 'var(--error-color)';
+            errEl.innerHTML = `Failed to add personality: ${result.message}${result.details ? `<br>${result.details}` : ''}`;
+        }
+    })
+    .catch(error => {
+        console.error('Network error:', error);
+        errEl.style.display = 'block';
+        errEl.style.color = 'var(--error-color)';
+        errEl.innerHTML = `Error adding personality: ${error.message}`;
+    });
+});
+    </script>
+</body>
+
+</html>

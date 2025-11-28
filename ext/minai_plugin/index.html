@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Landing Page</title>
+    <style>
+        :root {
+            --primary-color: #4CAF50;
+            --secondary-color: #2196F3;
+            --background-dark: #1a1a1a;
+            --background-light: #2d2d2d;
+            --text-color: #e0e0e0;
+            --border-color: #404040;
+            --success-color: #40c057;
+            --error-color: #f44336;
+            --warning-color: #ffc107;
+            --info-color: #4dabf7;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background-color: var(--background-dark);
+            height: 100%;
+            color: var(--text-color);
+        }
+
+/* unvisited link */
+a:link {
+  color: var(--text-color);
+}
+/* visited link */
+a:visited {
+  color: var(--text-color);
+}
+/* mouse over link */
+a:hover {
+  color: var(--warning-color);
+}
+/* selected link */
+a:active {
+  color: var(--success-color);
+}
+        .container {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            text-align: center;
+            padding: 20px;
+            background: radial-gradient(circle at center, var(--background-light) 0%, var(--background-dark) 100%);
+        }
+
+        .content-wrapper {
+            max-width: 1200px;
+            width: 100%;
+            padding: 40px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .splash-image {
+            width: 100%;
+            max-width: 200px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            transition: transform 0.3s ease;
+        }
+
+        .splash-image:hover {
+            transform: scale(1.05);
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+            color: var(--text-color);
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        p {
+            font-size: 1.1rem;
+            color: var(--text-color);
+            opacity: 0.9;
+            margin-bottom: 40px;
+            max-width: 600px;
+            line-height: 1.6;
+        }
+
+        .links {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            width: 100%;
+            max-width: 800px;
+            margin: 30px auto;
+            justify-content: center;
+        }
+
+        /* Update the base button styles */
+        .links a, .update-button, .external-links a {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            font-size: 1.1rem;
+            color: var(--text-color);
+            padding: 16px 24px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(4px);
+            height: 60px;
+            text-align: center;
+            margin: 0 auto;
+            width: 100%;
+            max-width: 300px;
+            position: relative;
+            overflow: hidden;
+            /* Add default gradient background */
+            background: linear-gradient(135deg,
+                rgba(255, 255, 255, 0.1) 0%,
+                rgba(255, 255, 255, 0.05) 100%
+            );
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Update hover effect to be more pronounced */
+        .links a:hover, .update-button:hover, .external-links a:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            filter: brightness(1.3);
+            background: linear-gradient(135deg,
+                rgba(255, 255, 255, 0.15) 0%,
+                rgba(255, 255, 255, 0.08) 100%
+            );
+        }
+
+        /* Add shimmer effect */
+        .links a::before, .update-button::before, .external-links a::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(
+                90deg,
+                transparent,
+                rgba(255, 255, 255, 0.1),
+                transparent
+            );
+            transition: 0.5s;
+        }
+
+        .links a:hover::before, .update-button:hover::before, .external-links a:hover::before {
+            left: 100%;
+        }
+
+        /* Update button styles */
+        .update-button.stable {
+            background: linear-gradient(135deg, 
+                rgba(76, 175, 80, 0.1) 0%, 
+                rgba(76, 175, 80, 0.2) 100%
+            );
+            border-color: var(--success-color);
+        }
+
+        .update-button.development {
+            background: linear-gradient(135deg, 
+                rgba(33, 150, 243, 0.1) 0%, 
+                rgba(33, 150, 243, 0.2) 100%
+            );
+            border-color: var(--info-color);
+        }
+
+        /* Primary action buttons (Configuration and Diagnostics) */
+        .links a[href="config.html"],
+        .links a[href="diagnostic.html"] {
+            background: linear-gradient(135deg, 
+                rgba(76, 175, 80, 0.2) 0%, 
+                rgba(76, 175, 80, 0.3) 100%
+            );
+            border-color: rgba(76, 175, 80, 0.5);
+            font-weight: 500;
+            font-size: 1.2rem;
+            height: 70px;
+        }
+
+        /* Equipment Manager */
+        .links a[href="we_manager.html"] {
+            background: linear-gradient(135deg, 
+                rgba(156, 39, 176, 0.1) 0%, 
+                rgba(156, 39, 176, 0.2) 100%
+            );
+            border-color: rgba(156, 39, 176, 0.3);
+            grid-column: 1 / -1;
+            max-width: 400px;
+        }
+
+        /* Tattoo Manager */
+        .links a[href="tattoo_manager.html"] {
+            background: linear-gradient(135deg, 
+                rgba(233, 30, 99, 0.1) 0%, 
+                rgba(233, 30, 99, 0.2) 100%
+            );
+            border-color: rgba(233, 30, 99, 0.3);
+        }
+
+        /* Debugging section */
+        .debugging-section {
+            margin: 15px auto;
+            width: 100%;
+            max-width: 800px;
+        }
+        
+        .debugging-section h3 {
+            color: var(--info-color);
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+            text-align: center;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        
+        .debugging-section a {
+            background: linear-gradient(135deg, 
+                rgba(77, 171, 247, 0.1) 0%, 
+                rgba(77, 171, 247, 0.2) 100%
+            );
+            border-color: rgba(77, 171, 247, 0.4);
+            color: var(--info-color);
+        }
+        
+        .debugging-section a:hover {
+            background: linear-gradient(135deg, 
+                rgba(77, 171, 247, 0.15) 0%, 
+                rgba(77, 171, 247, 0.25) 100%
+            );
+        }
+
+        /* NSFW related buttons */
+        .nsfw-options {
+            margin: 15px auto;
+        }
+
+        .nsfw-options a {
+            background: linear-gradient(135deg, 
+                rgba(218, 119, 242, 0.15) 0%, 
+                rgba(218, 119, 242, 0.25) 100%
+            );
+            border-color: rgba(218, 119, 242, 0.4);
+            color: #f0d5f7;
+        }
+
+        /* External links container */
+        .external-links {
+            margin-top: 10px;
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .external-links a {
+            flex: 0 1 200px;
+            height: 50px;
+            font-size: 1rem;
+        }
+
+        /* Github button */
+        .external-links a[href*="github"] {
+            background: linear-gradient(135deg, 
+                rgba(51, 51, 51, 0.1) 0%, 
+                rgba(51, 51, 51, 0.2) 100%
+            );
+            border-color: rgba(51, 51, 51, 0.3);
+        }
+
+        /* Back to Main button */
+        .external-links a[href*="HerikaServer"] {
+            background: linear-gradient(135deg, 
+                rgba(255, 152, 0, 0.1) 0%, 
+                rgba(255, 152, 0, 0.2) 100%
+            );
+            border-color: rgba(255, 152, 0, 0.3);
+        }
+
+        .status-section {
+            margin: 30px auto;
+            padding: 25px;
+            max-width: 800px;
+            width: 100%;
+            text-align: center;
+            background-color: rgba(45, 45, 45, 0.4);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(4px);
+        }
+
+        .version-info {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .version-info p {
+            margin: 10px 0;
+            font-size: 1rem;
+            opacity: 0.9;
+        }
+
+        .version-text {
+            margin: 10px 0;
+            padding: 10px;
+            background-color: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .version-text p {
+            margin: 2px 0;
+            font-size: 0.8rem;
+            opacity: 0.9;
+        }
+
+        .version-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 15px auto;
+            max-width: 800px;
+            justify-content: center;
+        }
+
+        .version-item {
+            padding: 12px;
+            background-color: rgba(0, 0, 0, 0.2);
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+        }
+
+        .version-label {
+            font-size: 0.9rem;
+            color: var(--text-color);
+            opacity: 0.7;
+            margin-bottom: 5px;
+        }
+
+        .version-value {
+            font-size: 1.1rem;
+            font-weight: 500;
+        }
+
+        .update-warning {
+            color: var(--warning-color);
+            font-size: 1.1rem;
+            margin: 20px auto;
+            max-width: 600px;
+            padding: 15px;
+            background-color: rgba(255, 193, 7, 0.1);
+            border-radius: 8px;
+            border: 1px solid var(--warning-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .update-warning::before {
+            content: "⚠️";
+            font-size: 1.2rem;
+        }
+
+        .development-info {
+            color: var(--info-color);
+            font-size: 1rem;
+            margin: 20px auto;
+            max-width: 600px;
+            padding: 15px;
+            background-color: rgba(77, 171, 247, 0.1);
+            border-radius: 8px;
+            border: 1px solid var(--info-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .development-info::before {
+            content: "ℹ️";
+            font-size: 1.2rem;
+        }
+
+        .update-buttons .links {
+            margin: 20px auto;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+        }
+
+        .update-buttons .update-button {
+            flex: 0 1 280px;
+        }
+
+        .error-message {
+            color: var(--error-color);
+            font-size: 1rem;
+            margin: 20px 0;
+            padding: 12px;
+            background-color: rgba(244, 67, 54, 0.1);
+            border-radius: 8px;
+            border: 1px solid var(--error-color);
+        }
+
+        .nsfw-mode {
+            color: #da77f2;
+            font-size: 1rem;
+            margin: 20px 0;
+            padding: 12px;
+            background-color: rgba(218, 119, 242, 0.1);
+            border-radius: 8px;
+            border: 1px solid #da77f2;
+        }
+
+        .update-status {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: var(--background-light);
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 800px;
+            width: 90%;
+            display: none;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border-color);
+            z-index: 1000;
+            backdrop-filter: blur(16px);
+        }
+
+        .update-status h3 {
+            color: var(--info-color);
+            margin: 0 0 20px 0;
+            font-size: 1.4rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .update-status pre {
+            background-color: var(--background-dark);
+            padding: 16px;
+            border-radius: 8px;
+            color: var(--text-color);
+            font-family: 'Consolas', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+        }
+
+        .important-note {
+            background: rgba(76, 175, 80, 0.1);
+            border-left: 3px solid var(--primary-color);
+            padding: 10px 15px;
+            margin: 15px 0;
+        }
+
+        .nav-button.warning {
+            background: linear-gradient(135deg,
+                rgba(244, 67, 54, 0.1) 0%,
+                rgba(244, 67, 54, 0.2) 100%
+            );
+            border: 1px solid var(--error-color);
+        }
+
+        footer {
+            position: fixed;
+            bottom: 20px;
+            width: 100%;
+            text-align: center;
+            color: var(--text-color);
+            opacity: 0.7;
+            font-size: 0.9rem;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        @media (max-width: 768px) {
+            .content-wrapper {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+
+            .links {
+                grid-template-columns: 1fr;
+                max-width: 100%;
+            }
+
+            .links a, .update-button {
+                height: 50px;
+                max-width: 100%;
+                font-size: 1rem;
+                padding: 12px 20px;
+            }
+
+            .update-buttons .update-button {
+                flex: 1 1 100%;
+            }
+        }
+
+        /* Add this new style for Ko-fi button positioning */
+        .kofi-button-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 10;
+        }
+
+        @media (max-width: 768px) {
+            .kofi-button-container {
+                position: relative;
+                top: 0;
+                right: 0;
+                margin: 20px auto;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="content-wrapper">
+            <!-- Move Ko-fi button here, right after content-wrapper opens -->
+            <div class="kofi-button-container">
+                <script src='https://storage.ko-fi.com/cdn/widget/Widget_2.js'></script>
+                <script>
+                    kofiwidget2.init('Support me on Ko-fi', '#72a4f2', 'S6S51B7MJA');
+                    kofiwidget2.draw();
+                </script>
+            </div>
+
+            <h1>Welcome to the MinAI Configuration Page</h1>
+            <p>Manage your game settings, configuration, diagnose problems, and more from here.</p>
+
+            <!-- Splash Image -->
+            <img src="splash.png" alt="Splash Image" class="splash-image">
+
+            <!-- Status Section -->
+            <div class="status-section">
+                <!-- NSFW Mode Indicator -->
+                <div id="nsfw-mode" class="nsfw-mode" style="display:none;">NSFW mode is currently enabled</div>
+                
+                <!-- Version Info -->
+                <div id="version-info" class="version-info">
+                    Checking for updates...
+                </div>
+
+                <!-- Error Message -->
+                <div id="error-message" class="error-message" style="display:none;"></div>
+
+                <!-- Update Buttons -->
+                <div id="update-buttons" class="update-buttons" style="display:none;">
+                    <div class="links">
+                        <button class="update-button" onclick="updateToLatestVersion('stable')">Update to Latest Stable</button>
+                        <button class="update-button" onclick="updateToLatestVersion('main')">Update to Latest Development</button>
+                    </div>
+                </div>
+                
+                <div align="left" class="version-text">
+                <p><a href="version_changelog.txt" target="_blank">Versions:</a></p> 
+                <p>- 2.1.3 (stable) is compatible with CHIM v1.2.x, not with CHIM v1.3.x </p> 
+                <p>- 2.1.3-dev7 is compatible with CHIM v1.3.5.x. (recomended) <a href="version_changelog.txt" target="_blank">Read this for details.</a></p>
+                <div class="important-note">
+                <b>IMPORTANT:</b> After the update, open the plugin <a href="config.html" class="cache-bust">Configuration Page</a>, </br>reset the settings with <a href="config.html"><nobr class="nav-button warning">Reset All to Defaults</nobr></a> then save.
+                </div>
+                </div>
+                
+            </div>
+
+            <!-- Primary Navigation Links -->
+            <div class="links">
+                <a href="config.html" class="cache-bust">Configuration</a>
+                <a href="we_manager.html" class="cache-bust">Equipment Manager</a>
+                <a href="items.html" class="cache-bust">Items Manager</a>
+                <a href="diary.html" class="cache-bust">Diary Viewer</a>
+                <a href="tattoo_descriptions.html" class="cache-bust">Tattoo Manager</a>
+            </div>
+
+            <!-- Debugging Section -->
+            <div class="debugging-section">
+                <div class="links">
+                    <a href="diagnostic.html" class="cache-bust">Diagnostics and Log Viewer</a>
+                    <a href="metrics.html" class="cache-bust">Metrics</a>
+                </div>
+            </div>
+
+            <!-- NSFW Options -->
+            <div class="links nsfw-options" id="nsfw-options" style="display:none;">
+                <a href="personalities.html" class="cache-bust">Edit NPC Sex Personalities</a>
+                <a href="scene_descriptions.html" class="cache-bust">Edit Sex Scene Descriptions</a>
+            </div>
+
+            <!-- External Links -->
+            <div class="external-links">
+                <a href="https://github.com/MinLL/MinAI/tree/main">Github</a>
+                <a href="/HerikaServer/" class="cache-bust">Back to Main CHIM Page</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Update Status Modal -->
+    <div id="update-status" class="update-status">
+        <h3>Update Progress</h3>
+        <pre id="update-log"></pre>
+    </div>
+
+    <footer>
+        MinAI
+    </footer>
+
+    <script>
+        // Function to fetch the local version from version.txt (bypassing the cache)
+        async function fetchLocalVersion() {
+            try {
+                const timestamp = new Date().getTime(); // Use the current timestamp to bypass cache
+                const response = await fetch(`version.txt?cache_buster=${timestamp}`);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch local version');
+                }
+                const version = await response.text();
+                return version.trim();
+            } catch (error) {
+                console.error('Error fetching local version:', error);
+                return null;
+            }
+        }
+
+        // Function to fetch the latest version from GitHub (bypassing the cache)
+        async function fetchGitHubVersion(branch) {
+            const githubRepo = 'MinLL/MinAI'; // Your GitHub repository
+            const versionFilePath = 'minai_plugin/version.txt'; // Path to the version file in your GitHub repository
+            const timestamp = new Date().getTime(); // Use the current timestamp to bypass cache
+            const url = `https://raw.githubusercontent.com/${githubRepo}/refs/heads/${branch}/${versionFilePath}?cache_buster=${timestamp}`;
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch GitHub version');
+                }
+                const version = await response.text();
+                return version.trim();
+            } catch (error) {
+                console.error('Error fetching GitHub version:', error);
+                return null;
+            }
+        }
+
+        // Function to call the PHP API to update to the selected branch
+        async function updateToLatestVersion(branch) {
+            const updateStatus = document.getElementById('update-status');
+            const updateLog = document.getElementById('update-log');
+            const errorMessageDiv = document.getElementById('error-message');
+            
+            updateStatus.style.display = 'block';
+            updateLog.textContent = '';  // Clear previous logs
+            errorMessageDiv.style.display = 'none';
+
+            function appendMessage(status, message) {
+                const timestamp = new Date().toLocaleTimeString();
+                const statusClass = `status-${status}`;
+                let icon = '';
+                
+                // Add status-specific icons using Unicode
+                switch(status) {
+                    case 'progress':
+                        icon = '<span class="emoji">📋</span> '; // U+1F4CB
+                        break;
+                    case 'success':
+                        icon = '<span class="emoji">✅</span> '; // U+2705
+                        break;
+                    case 'error':
+                        icon = '<span class="emoji">❌</span> '; // U+274C
+                        break;
+                }
+                
+                const messageHtml = `[${timestamp}] <span class="${statusClass}">${icon}${message}</span>\n`;
+                updateLog.innerHTML += messageHtml;
+                updateLog.scrollTop = updateLog.scrollHeight;
+            }
+
+            try {
+                const response = await fetch(`api/update.php?branch=${branch}`, { 
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'text/event-stream'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const {value, done} = await reader.read();
+                    if (done) break;
+                    
+                    buffer += decoder.decode(value, {stream: true});
+                    
+                    // Split buffer by newlines and process each complete message
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || ''; // Keep the last incomplete line in buffer
+                    
+                    for (const line of lines) {
+                        if (line.trim()) {
+                            try {
+                                const result = JSON.parse(line);
+                                appendMessage(result.status, result.message);
+                                
+                                if (result.status === 'success') {
+                                    setTimeout(() => {
+                                        alert('Update completed! Please refresh the page.');
+                                    }, 1000);
+                                }
+                            } catch (e) {
+                                console.error('Error parsing line:', line, e);
+                                appendMessage('error', `Failed to parse update message: ${line}`);
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                errorMessageDiv.textContent = `Error updating to the latest version: ${error.message}`;
+                errorMessageDiv.style.display = 'block';
+                appendMessage('error', `Error: ${error.message}`);
+                console.error('Error updating to the latest version:', error);
+            }
+        }
+
+        // Function to compare the local version with both GitHub branches
+        async function checkForUpdates() {
+            const localVersion = await fetchLocalVersion();
+            const stableVersion = await fetchGitHubVersion('stable');
+            const mainVersion = await fetchGitHubVersion('main');
+
+            const versionInfoDiv = document.getElementById('version-info');
+            const updateButtonsDiv = document.getElementById('update-buttons');
+
+            if (localVersion && stableVersion && mainVersion) {
+                if (localVersion === stableVersion && localVersion === mainVersion) {
+                    versionInfoDiv.innerHTML = `
+                        <div class="version-details">
+                            <div class="version-item">
+                                <div class="version-label">Current Version</div>
+                                <div class="version-value">${localVersion}</div>
+                            </div>
+                        </div>
+                        <p>You are using the latest version</p>
+                    `;
+                } else {
+                    versionInfoDiv.innerHTML = `
+                        <div class="version-details">
+                            <div class="version-item">
+                                <div class="version-label">Current Version</div>
+                                <div class="version-value">${localVersion}</div>
+                            </div>
+                            <div class="version-item">
+                                <div class="version-label">Latest Stable</div>
+                                <div class="version-value">${stableVersion}</div>
+                            </div>
+                            <div class="version-item">
+                                <div class="version-label">Latest Development</div>
+                                <div class="version-value">${mainVersion}</div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    //if (localVersion !== stableVersion) {
+                    //    versionInfoDiv.innerHTML += `
+                    //        <div class="update-warning">
+                    //            A new stable version is available!
+                    //        </div>
+                    //    `;
+                    //}
+                    //if (localVersion !== mainVersion && localVersion === stableVersion) {
+                    //    versionInfoDiv.innerHTML += `
+                    //        <div class="development-info">
+                    //            A new development version is available
+                    //        </div>
+                    //    `;
+                    //}
+
+                    updateButtonsDiv.innerHTML = `
+                        <div class="links">
+                            <button class="update-button stable" onclick="updateToLatestVersion('stable')">
+                                Update to Latest Stable
+                            </button>
+                            <button class="update-button development" onclick="updateToLatestVersion('main')">
+                                Update to Latest Development
+                            </button>
+                        </div>
+                    `;
+                    updateButtonsDiv.style.display = 'block';
+                }
+            } else {
+                versionInfoDiv.innerHTML = `
+                    <div class="error-message">
+                        Unable to check for updates at this time.
+                    </div>
+                `;
+            }
+        }
+
+        // Run the update check when the page loads
+        document.addEventListener('DOMContentLoaded', checkForUpdates);
+        
+        // Global variable to store the fetched payload
+        var fetchedPayload = {};
+
+        // Function to fetch the index_payload on page load
+        async function fetchPayload() {
+            try {
+                const response = await fetch('api/main.php?endpoint=index_payload', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                // Parse the JSON response
+                const result = await response.json();
+
+                if (response.ok) {
+                    // Store the data in the global variable
+                    fetchedPayload = result.data;
+                    console.log('Payload received:', fetchedPayload);
+                    return fetchedPayload;  // Return the payload data
+                } else {
+                    console.error('Error fetching payload:', result.message);
+                }
+            } catch (error) {
+                console.error('Fetch error:', error);
+            }
+        }
+
+        // Fetch the payload when the page loads
+        window.onload = async function() {
+            // Wait for the payload to be fetched
+            var data = await fetchPayload();
+            console.log(data);
+
+            // Check if nsfw exists in the payload and take action
+            if (data && data.nsfw === "nsfw") {
+                console.log("NSFW mode enabled");
+                var nsfwDiv = document.getElementById('nsfw-mode');
+                nsfwDiv.style.display = 'block';  // Show the NSFW mode div
+                var nsfwOptionsDiv = document.getElementById('nsfw-options');
+                nsfwOptionsDiv.style.display = 'block';  // Show the NSFW options div
+            }
+        };
+
+        // Add this to your existing script section
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add cache busting to all links with class 'cache-bust'
+            document.querySelectorAll('a.cache-bust').forEach(link => {
+                link.href = link.href + (link.href.includes('?') ? '&' : '?') + 'v=' + new Date().getTime();
+            });
+        });
+    </script>
+</body>
+</html>
