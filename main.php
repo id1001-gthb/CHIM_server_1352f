@@ -5,13 +5,13 @@ error_reporting(E_ALL);
 
 @define("STOPALL_MAGIC_WORD", "/wake up/i");
 
-@define("MAXIMUM_SENTENCE_SIZE", 125);
+@define("MAXIMUM_SENTENCE_SIZE", 121);
 @define("MINIMUM_SENTENCE_SIZE", 71);  // 50
 
-date_default_timezone_set('Europe/Madrid');
+date_default_timezone_set('GMT');
 
 $GLOBALS["AVOID_TTS_CACHE"]=true;
-$GLOBALS["CHIM_NO_EXAMPLES"]=true; // When no assistant entry in history, will try ti provide a bogus example.
+$GLOBALS["CHIM_NO_EXAMPLES"]=true; // When no assistant entry in history, will try to provide a bogus example.
 
 // Cooldown for some actions
 $COOLDOWNMAP=[];

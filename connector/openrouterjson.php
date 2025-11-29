@@ -37,6 +37,7 @@ class openrouterjson
     private $_websearch_index=0;
     private $_webbackup_func=false;
     private $_remove_cot;
+    private $_disable_reasoning;
     private $_cot_tag_base;
     private $_output_buffer; 
     private $_timeout;
@@ -62,6 +63,7 @@ class openrouterjson
         $this->_is_streaming=true;
         $this->_is_reasoning=false;
         $this->_remove_cot=true;
+        $this->_disable_reasoning=true;
         $this->_cot_tag_base="think";
         $this->_output_buffer="";
         $this->_timeout=30;
@@ -192,6 +194,7 @@ class openrouterjson
             Logger::error("{$this->name} connector - missing url!");
 
         $this->_remove_cot = (isset($GLOBALS["CONNECTOR"][$this->name]["remove_chain_of_thought"])) ? $GLOBALS["CONNECTOR"][$this->name]["remove_chain_of_thought"] : true;
+        $this->_disable_reasoning = ($GLOBALS["CONNECTOR"][$this->name]["disable_model_reasoning"] ?? true);
 
         $default_model = 'meta-llama/llama-3.3-70b-instruct';
 
@@ -600,7 +603,13 @@ class openrouterjson
         }
             
         if ($this->_is_reasoning) { // add parameter to hide <think> content
-            $data["reasoning"] = array ('exclude' => true, 'enabled' => true); // exclude = true - Use reasoning but don't include it in the response; enabled = false - do not use reasoning
+            //$data["reasoning"] = array ('exclude' => true, 'enabled' => true); // exclude = true - Use reasoning but don't include it in the response; enabled = false - do not use reasoning
+            if ($this->_disable_reasoning)
+                $data["reasoning"] = array ('exclude' => true, 'enabled' => false); // exclude = true - Use reasoning but don't include it in the response; enabled = false - do not use reasoning
+            else
+                $data["reasoning"] = array ('exclude' => true, 'enabled' => true); 
+            
+            
             //error_log("[OPENROUTER]  Excluding reasoning");
             //$data["reasoning"] = array ('exclude' => true, 'effort' => 'low'); // reduce reasoning tokens - OpenAI
             //$data["reasoning"] = array ('exclude' => true, 'max_tokens' => 64 ); // reduce reasoning tokens - Anthropic 
@@ -608,9 +617,9 @@ class openrouterjson
             if (!(stripos($this->_model, "qwen3-") === false)) {//qwen3
                 $data["enable_thinking"] = false;
             }            
-            if (!(stripos($this->_model, "x-ai/grok-4.1-fast") === false)) { //x-ai/grok-4.1-fast
-                $data["reasoning"] = array ('exclude' => true, 'enabled' => false);
-            }            
+            //if (!(stripos($this->_model, "x-ai/grok-4.1-fast") === false)) { //x-ai/grok-4.1-fast
+            //    $data["reasoning"] = array ('exclude' => true, 'enabled' => false);
+            //}            
         }
         
         if ($this->_is_mistral_ai) { // Mistral AI API does not support penalty params
