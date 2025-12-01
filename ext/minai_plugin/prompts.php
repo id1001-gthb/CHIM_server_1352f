@@ -22,7 +22,7 @@ require_once("customintegrations.php");
 require_once("functions/deviousnarrator.php");
 
 // Custom command / third party integrations support
-// Done here, as this is mounted early in main.php
+// Done here, as this is mounted early in main .php
 ProcessIntegrations();
 $cleanedMessage = GetCleanedMessage();
 $enforceLength = "You MUST Respond with no more than two sentences.";
