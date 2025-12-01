@@ -1,5 +1,12 @@
 #!/bin/bash
 
+
+if [ -f /var/www/html/HerikaServer/log/service.log ] ; then
+  rm /var/www/html/HerikaServer/log/service.log
+fi
+
+echo "-- starting service $dt" &>> /var/www/html/HerikaServer/log/service.log
+
 PORT=12345 # Choose a port number
 
 # Check if the port is already in use
@@ -28,11 +35,14 @@ listener() {
 listener $$ &
 LISTENER_PID=$!
 
+echo "-- Start listener in background " &>> /var/www/html/HerikaServer/log/service.log
+
 # Set trap for clean exit (still useful for SIGTERM, etc.)
-trap "kill $LISTENER_PID 2>/dev/null" EXIT
+trap "kill $LISTENER_PID &>> /var/www/html/HerikaServer/log/service.log" EXIT
 
 # Main loop
 while true; do 
     php /var/www/html/HerikaServer/service/manager.php &>> /var/www/html/HerikaServer/log/service.log
     sleep 7
 done
+echo "--- Stop listener " &>> /var/www/html/HerikaServer/log/service.log

@@ -1311,6 +1311,78 @@ if ($checkVersion("npc_templates")<20250619001) {
     echo '<script>alert("NPC Templates have been updated with extended profile fields!");</script>';
 }
 
+
+//----------------------------------------------------
+if ($checkVersion("emotions_expression")<20251129002) {
+    Logger::debug(" try patch: emotions_expression 20251129002");
+    $b_ok = true;
+    try {
+        $query = " ALTER TABLE speech ADD COLUMN IF NOT EXISTS mood TEXT; ";
+        $db->execQuery($query);        
+    } catch (Exception $e) {
+        // Log error but don't fail
+        $b_ok = false;
+        error_log("Error altering 'speech' table: " . $e->getMessage());
+    }
+    try {
+        $query = " ALTER TABLE speech ADD COLUMN IF NOT EXISTS emotion TEXT; ";
+        $db->execQuery($query);        
+    } catch (Exception $e) {
+        $b_ok = false;
+        error_log("Error altering 'speech' table: " . $e->getMessage());
+    }
+    try {
+        $query = " ALTER TABLE speech ADD COLUMN IF NOT EXISTS emotion_intensity TEXT; ";
+        $db->execQuery($query);        
+    } catch (Exception $e) {
+        $b_ok = false;
+        error_log("Error altering 'speech' table: " . $e->getMessage());
+    }
+
+    if ($b_ok) {
+        $updateVersion("emotions_expression",20251129002);
+        Logger::info("Applied patch emotions_expression 20251129002");
+    }
+}
+
+//----------------------------------------------------
+// database maintenance tools
+// - autovacuum / table
+//----------------------------------------------------
+
+if ($checkVersion("db_maintenance")<20251128002) {
+    Logger::debug(" try patch: db_maintenance 20251128002");
+
+    try {
+        $db->execQuery("DROP FUNCTION IF EXISTS public.sql_exec2(text) CASCADE");
+
+        $db->execQuery("
+        CREATE FUNCTION public.sql_exec2(text) returns text 
+        language plpgsql volatile 
+        AS 
+        $$
+            BEGIN
+              EXECUTE $1;
+              RETURN $1;
+            END;
+        $$; 
+        ");
+
+        $db->execQuery("SELECT sql_exec2('ALTER TABLE \"'||pgc.relname||'\" SET (autovacuum_enabled = on, toast.autovacuum_enabled = on) '||';')
+            FROM pg_catalog.pg_class pgc
+            LEFT JOIN pg_catalog.pg_namespace pgn ON pgn.oid = pgc.relnamespace
+            WHERE (pgc.relkind ='r')
+            AND (pgn.nspname='public'); ");
+
+        $updateVersion("db_maintenance",20251128002);
+
+    } catch (Exception $e) {
+        error_log("Error altering 'speech' table: " . $e->getMessage());
+    }
+
+    Logger::info("Applied patch db_maintenance 20251128002");
+}
+
 //----------------------------------------------------
 
 Logger::info(__FILE__." update file processed");

@@ -140,6 +140,7 @@ if (sizeof($_GET)==0) {
     require_once(__DIR__."/../debug/npc_removal.php");
 
     // manage CHIM log files 
+    /*
     $s_path = LOG_PATH . DIRECTORY_SEPARATOR ;
     $s_files = glob($s_path . '*.txt');
     foreach ($s_files as $file) {
@@ -153,7 +154,18 @@ if (sizeof($_GET)==0) {
             Logger::deleteLogIfTooLarge($file);
         }
     }    
-    
+    */
+    /*
+    $startScript = "/var/www/html/HerikaServer/ext/minai_plugin/m_init.sh";
+    if (file_exists($startScript)) {
+        $output = [];
+        $retval = null;
+        $res = exec($startScript, $output, $retval);
+        $res = $res ? $res : "F";
+        error_log("index exec {$startScript} res={$res} return code={$retval} output: " . print_r($output,true));
+    } else 
+        error_log("file not found: {$startScript} ");
+    */
     // Initialize automatic backup system now that database is ready
     if (function_exists('deferredAutomaticBackupInit')) {
         deferredAutomaticBackupInit();

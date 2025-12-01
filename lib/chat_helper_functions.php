@@ -1725,7 +1725,7 @@ function logEvent($dataArray,$forcePeople='')
                     'party'=>$GLOBALS["CACHE_PARTY"]
                 )
             );
-        } else error_log("logEvent: skip $dataArray[0] - $dataArray[3]"); // debug
+        } //else error_log("logEvent: skip $dataArray[0] - $dataArray[3]"); // debug
     }
 }
 
