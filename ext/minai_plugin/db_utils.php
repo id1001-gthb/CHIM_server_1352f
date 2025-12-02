@@ -214,7 +214,7 @@ function InitiateDBTables() {
     CreateTattooDescriptionTableIfNotExists();
     CreateItemsTableIfNotExists();
     UpdateSpeechTableIfNotHaveEmotionFields();
-    SetAutoVacuum();
+    //SetAutoVacuum();
     // Seed default items
     SeedDefaultItems();
     error_log("MinAI InitiateDBTables - exec trace"); //debug
