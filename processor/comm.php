@@ -265,15 +265,13 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
         if (strlen($s_json) > 0)
             $arr_raw = json_decode($s_json, true);
 
+        $s_emo = "-";
+        $s_emo_int = "-";
+        $s_mood = "-";
+
         if (isset($arr_raw)) {
-            $s_emo = $arr_raw["emotion"] ?? "-";
-            $s_emo_int = $arr_raw["emotion intensity"] ?? "-";
-            $s_mood = $arr_raw["mood"] ?? "-";
-            $s_speaker = $arr_raw["character"] ?? "";
             $s_msg = $arr_raw["message"] ?? "";
-            /*
-            $s_speaker = $GLOBALS["db"]->escape($arr_raw["character"] ?? "");
-            $s_speech = $GLOBALS["db"]->escape(substr($s_msg,0,MINIMUM_SENTENCE_SIZE-5));
+            $s_speaker = $arr_raw["character"] ?? "";
             $s_targets = $arr_raw["listener"] ?? "";
             if (strpos($s_targets, ',') === false) {
                 $s_target = $GLOBALS["db"]->escape($s_targets);
@@ -281,14 +279,20 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
                 $arr_targets = explode(',', $s_targets);
                 $s_target = $GLOBALS["db"]->escape($arr_targets[0]);
             }
+            if(($s_speaker == $speech["speaker"]) && ($s_targets == $speech["listener"])) {
+                $s_emo = $arr_raw["emotion"] ?? "-";
+                $s_emo_int = $arr_raw["emotion intensity"] ?? "-";
+                $s_mood = $arr_raw["mood"] ?? "-";
+            }
+
+            /*
+            $s_speaker = $GLOBALS["db"]->escape($arr_raw["character"] ?? "");
+            $s_speech = $GLOBALS["db"]->escape(substr($s_msg,0,MINIMUM_SENTENCE_SIZE-5));
 
             error_log("_speech: $s_speaker - $s_target | $s_emo $s_emo_int $s_mood"); //debug 
             */
             //error_log("_speech: $s_speaker | $s_emo $s_emo_int $s_mood - $s_msg"); //debug 
         } else {
-            $s_emo = "-";
-            $s_emo_int = "-";
-            $s_mood = "-";
             error_log("_speech: conf opt not found ");
         }
 
