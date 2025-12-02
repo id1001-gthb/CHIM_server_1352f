@@ -171,16 +171,16 @@ if (!in_array($gameRequest[0],$fast_commands)) {
     $semaphore = sem_get($semaphoreKey);
     $ix = 0;
     while (sem_acquire($semaphore,true)!=true)  {
-        //error_log("Audit: Waiting for lock: {$gameRequest[0]}");
-        //usleep(1000);
-        //usleep(500);
-        $nano = time_nanosleep(0, 500000);
         $ix++;
-        if ($ix > 200000) {
+        if ($ix > 250000) {
             error_log(" loop break in " .__FILE__ . " " . __LINE__); // debug
             sem_release($semaphore);
             terminate();
         }
+        //error_log("Audit: Waiting for lock: {$gameRequest[0]}");
+        //usleep(1000);
+        //usleep(500);
+        $nano = time_nanosleep(0, 500000);
     }
     Logger::info("Audit:Lock acquired by {$gameRequest[0]}");
 } 
@@ -191,14 +191,14 @@ if (in_array($gameRequest[0],["addnpc"])) {
     $semaphore2 = sem_get($semaphoreKey2);
     $ix = 0;
     while (sem_acquire($semaphore2,true)!=true)  {
-        //usleep(100);
-		$nano = time_nanosleep(0, 250000);
         $ix++;
-        if ($ix > 200000) {
+        if ($ix > 250000) {
             error_log(" loop break in " .__FILE__ . " " . __LINE__); // debug
             sem_release($semaphore2);
             terminate();
         }
+        //usleep(100);
+		$nano = time_nanosleep(0, 250000);
     }
 } 
 

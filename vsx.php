@@ -29,15 +29,14 @@ $semaphoreKey2 =abs(crc32(__FILE__));
 $semaphore = sem_get($semaphoreKey2);
 $ix = 0;
 while (sem_acquire($semaphore,true) != true)  {
-    //usleep(10); // debug
-    $nano = time_nanosleep(0, 250000);
-
     $ix++;
-    if ($ix > 100000) {
+    if ($ix > 150000) {
         error_log(" loop break in " .__FILE__ . " " . __LINE__); // debug
         sem_release($semaphore);
         terminate();
     }
+    //usleep(10); // debug
+    $nano = time_nanosleep(0, 250000);
 }
 
 
