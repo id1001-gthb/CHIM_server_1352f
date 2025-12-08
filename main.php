@@ -5,13 +5,16 @@ error_reporting(E_ALL);
 
 @define("STOPALL_MAGIC_WORD", "/wake up/i");
 
-@define("MAXIMUM_SENTENCE_SIZE", 121);
-@define("MINIMUM_SENTENCE_SIZE", 71);  // 50
+@define("MAXIMUM_SENTENCE_SIZE", 125);
+@define("MINIMUM_SENTENCE_SIZE", 75);
 
 date_default_timezone_set('GMT');
 
 $GLOBALS["AVOID_TTS_CACHE"]=true;
 $GLOBALS["CHIM_NO_EXAMPLES"]=true; // When no assistant entry in history, will try to provide a bogus example.
+$GLOBALS["MEMORY_THRESHOLD_MODIFIER"]=0;    // POST MEMORY
+
+$GLOBALS["SEMAPHORES_TIMEOUT"]=300; // 300 sec timeout for semaphore lock
 
 // Cooldown for some actions
 $COOLDOWNMAP=[];
@@ -27,7 +30,7 @@ require_once($path . "lib" .DIRECTORY_SEPARATOR."chat_helper_functions.php");
 require_once($path . "lib" .DIRECTORY_SEPARATOR."memory_helper_vectordb.php");
 require_once($path . "lib" .DIRECTORY_SEPARATOR."utils_game_timestamp.php");
 require_once($path . "lib" .DIRECTORY_SEPARATOR."logger.php"); 
-requireFilesRecursively(__DIR__.DIRECTORY_SEPARATOR."ext".DIRECTORY_SEPARATOR,"globals.php");
+requireFilesRecursively(__DIR__."/ext/", "globals.php");
 
 $GLOBALS["ENGINE_PATH"]=$path;
 
@@ -46,7 +49,7 @@ function getBaseUrlForSpeech(): string {
 
     // Check if the port is non-standard for the protocol
     $isDefaultPort = ($protocol === "http://" && $port == 80) || ($protocol === "https://" && $port == 443);
-    error_log(" getBaseUrlForSpeech: $protocol - $host  -  $port "); //debug
+    Logger::debug(" getBaseUrlForSpeech: $protocol - $host  -  $port "); //debug
 
     return $protocol . $host . ($isDefaultPort ? '' : ':' . $port);
 }
@@ -73,10 +76,21 @@ if (php_sapi_name()=="cli" && !getenv('PHPUNIT_TEST')) {
     if (strpos($_SERVER["QUERY_STRING"],"&")===false)
         $receivedData = mb_scrub(base64_decode(substr($_SERVER["QUERY_STRING"],5)));
     else
-        $receivedData = mb_scrub(base64_decode(substr($_SERVER["QUERY_STRING"],5,strpos($_SERVER["QUERY_STRING"],"&")-4)));
+        $receivedData = mb_scrub(base64_decode(substr($_SERVER["QUERY_STRING"],5,strpos($_SERVER["QUERY_STRING"],"&")-4))); // this is from v1.3.5
+        //$receivedData = mb_scrub(base64_decode(substr($_SERVER["QUERY_STRING"],5,strpos($_SERVER["QUERY_STRING"],"&")-5))); // this is in v2.1 // xmd ???
+/*
+    if ((stripos($receivedData,'setconf') === false) &&    
+        (stripos($receivedData,'infonpc') === false) &&
+        (stripos($receivedData,'location: breezehome') === false) &&
+        (stripos($receivedData,'storeitem') === false) &&
+        (stripos($receivedData,'_quest') === false) &&
+        (stripos($receivedData,'_speech') === false) &&
+        true ) {
 
-    //error_log($receivedData." ".$_GET["profile"]);
-
+    error_log("receivedData=/{$receivedData}/ ".($_GET["profile"] ?? '')." - exec trace "); // debug
+        
+    }
+*/
 }
 
 
@@ -119,7 +133,7 @@ $gameRequest = explode("|", $receivedData);
 
 
 $startTime = microtime(true);
-//error_log("Audit run ID: " . $GLOBALS["AUDIT_RUNID"]. " ({$gameRequest[0]}) started: ".$startTime);
+//Logger::debug("Audit run ID: " . $GLOBALS["AUDIT_RUNID"]. " ({$gameRequest[0]}) started: ".$startTime);
 $GLOBALS["AUDIT_RUNID_REQUEST"]=$gameRequest[0];
 
 $gameRequest[0] = strtolower($gameRequest[0]); // Who put 'diary' uppercase?
@@ -132,7 +146,7 @@ require_once($path . "processor" .DIRECTORY_SEPARATOR."chim_modes.php");
 
 
 requireFilesRecursively(__DIR__.DIRECTORY_SEPARATOR."ext".DIRECTORY_SEPARATOR,"preprocessing.php");
-if (in_array($gameRequest[0],["inputtext","inputtext_s","ginputtext","ginputtext_s","instruction","init"])) {
+if (in_array($gameRequest[0],["inputtext","inputtext_s","ginputtext","ginputtext_s","narrator_inputtext","instruction","init"])) {
     // This is just form mark that user has made an input request. We will check later when waiting for LLm response 
     // if use has made input after that request, so we can abort it.
     $GLOBALS["ADD_PLAYER_BIOS"]=true;
@@ -156,49 +170,60 @@ if (in_array($gameRequest[0],["inputtext","inputtext_s","ginputtext","ginputtext
 
 
 $fast_commands = ["addnpc","updateprofile","diary","_quest","setconf","request","_speech","infoloc","infonpc","infonpc_close",
-    "infoaction","status_msg","delete_event","itemfound","_questdata","_uquest","location","_questreset","chat","bleedout","waitstart","waitstop",
-    "util_location_name","spellcast","npcspellcast","updateprofiles_batch_async","core_profile_assign","switchrace","combatbark"];
+    "infoaction","status_msg","delete_event","itemfound","_questdata","_uquest","location","_questreset","chat","bleedout",
+    "waitstart","waitstop","util_location_name","spellcast","npcspellcast","updateprofiles_batch_async","core_profile_assign",
+    "switchrace","combatbark","util_location_npc","enable_bg","region"];
 
 if (isset($GLOBALS["external_fast_commands"])) {
     $fast_commands = array_merge($fast_commands, $GLOBALS["external_fast_commands"]);
 }
 
-//$GLOBALS["fast_commands_all"] = $fast_commands;
+$GLOBALS["all_fast_commands"] = $fast_commands;
 
+$semaphore_timeout = $GLOBALS["SEMAPHORES_TIMEOUT"] ?? 300;
+$semaphoreKey = abs(crc32(__FILE__));
+$semaphore = sem_get($semaphoreKey); 
+$GLOBALS["SEMAPHORES"]["MAIN"] = $semaphore;
 
 if (!in_array($gameRequest[0],$fast_commands)) {
-    $semaphoreKey =abs(crc32(__FILE__));
-    $semaphore = sem_get($semaphoreKey);
-    $ix = 0;
+    
+    //$semaphoreKey = abs(crc32(__FILE__));
+    //$semaphore = sem_get($semaphoreKey); //if this semaphore is used elsewhere as it is now, better to be created outside if block
+    $ix = 0;  
+    $t0 = time();    
     while (sem_acquire($semaphore,true)!=true)  {
         $ix++;
-        if ($ix > 250000) {
-            error_log(" loop break in " .__FILE__ . " " . __LINE__); // debug
-            sem_release($semaphore);
-            terminate();
+        if ($ix > 2000) {
+            $dt = time() - $t0; 
+            if ($dt > $semaphore_timeout) {  
+                Logger::warn("[main] main semaphore loop break after {$dt} sec in " .__FILE__ . " " . __LINE__); // debug
+                terminate();
+            } else $ix = 0;
         }
-        //error_log("Audit: Waiting for lock: {$gameRequest[0]}");
-        //usleep(1000);
-        //usleep(500);
-        $nano = time_nanosleep(0, 500000);
+        //Logger::info("Audit: Waiting for lock: {$gameRequest[0]}");
+        usleep(1003);
     }
-    Logger::info("Audit:Lock acquired by {$gameRequest[0]}");
+    //Logger::info("Audit:Lock acquired by {$gameRequest[0]}");
 } 
+
 
 // adnpc has its custom semaphore, as it write files
 if (in_array($gameRequest[0],["addnpc"])) {
-    $semaphoreKey2 =abs(crc32(__FILE__."_secondary"));
+    $semaphoreKey2 = abs(crc32(__FILE__."_secondary"));
     $semaphore2 = sem_get($semaphoreKey2);
+    $GLOBALS["SEMAPHORES"]["ADDNPC"] = $semaphore2;
     $ix = 0;
+    $t0 = time();    
     while (sem_acquire($semaphore2,true)!=true)  {
         $ix++;
-        if ($ix > 250000) {
-            error_log(" loop break in " .__FILE__ . " " . __LINE__); // debug
-            sem_release($semaphore2);
-            terminate();
+        if ($ix > 20000) {
+            $dt = time() - $t0;
+            if ($dt > $semaphore_timeout) {
+                Logger::warn("[main] addnpc semaphore loop break after {$dt} sec in " .__FILE__ . " " . __LINE__); // debug
+                terminate();
+            } else $ix = 0;
         }
-        //usleep(100);
-		$nano = time_nanosleep(0, 250000);
+        usleep(101);
     }
 } 
 
@@ -502,7 +527,7 @@ if ($gameRequest[0]=="dynamic_oghma_import") {
 
 // Player rewrite
 
-if (in_array($gameRequest[0],["inputtext","inputtext_s","ginputtext","ginputtext_s"]) && isset($GLOBALS["PLAYER_RESPEECH"]) && $GLOBALS["PLAYER_RESPEECH"]) {
+if (in_array($gameRequest[0],["inputtext","inputtext_s","ginputtext","ginputtext_s","narrator_inputtext"]) && isset($GLOBALS["PLAYER_RESPEECH"]) && $GLOBALS["PLAYER_RESPEECH"]) {
     // Use preg_replace to remove the name and colon before the dialogue
     $cleaned_player_dialogue = addcslashes(preg_replace('/^[^:]+:/', '', $gameRequest[3]),'"');
     Logger::debug($cleaned_player_dialogue);
@@ -552,6 +577,19 @@ if (isset($_GET["profile"])) {
     //Logger::debug(__FILE__.". Using default profile because NO GET PROFILE SPECIFIED");
     $GLOBALS["USING_DEFAULT_PROFILE"]=true;
 }
+
+
+
+if (in_array($gameRequest[0],["inputtext","inputtext_s","ginputtext","ginputtext_s","narrator_inputtext"]) ) {
+    // Empty request // ??? xmd roleplay modes 
+    if (empty($gameRequest[3]) || trim($gameRequest[3])=="{$GLOBALS["PLAYER_NAME"]}:") {
+        Logger::debug("[MAIN] Empty request... aborting");
+        terminate();
+    } else {
+        Logger::debug("[MAIN] Request: {$gameRequest[3]}");
+    }
+}
+
 
 /* *****
 Player TTS
@@ -659,14 +697,14 @@ if ($gameRequest[0] == "npcspellcast") {
     terminate(); // Always exit, whether logged or not
 }
 
-if (in_array($gameRequest[0],["info","infonpc","infonpc_close","infoloc","chatme","chat","infoaction","death","itemfound",
-    "travelcancel","infoplayer","status_msg","util_npcname","bleedout","spellcast"])) {
+if (in_array($gameRequest[0],["info","infonpc","infonpc_close","infoloc","infoitems","chatme","chat","infoaction","death","itemfound",
+    "travelcancel","infoplayer","status_msg","util_npcname","bleedout","spellcast","backgroundaction","reanimate","itempickup"])) {
     $gameRequest[3]=isset($gameRequest[3])?$gameRequest[3]:"";
     $lastInfoNpcData=$db->escape($gameRequest[3]);
-    if (in_array($gameRequest[0],['infonpc','infoloc','infonpc_close'])) {
+    if (in_array($gameRequest[0],['infonpc','infoloc','infonpc_close','infoitems'])) {
         // Special cases
         //$lastlogEqual=$db->fetchAll("select count(*) as n from eventlog where type in ('infonpc','infoloc','infonpc_close') and data='$lastInfoNpcData' and localts>".(time()-5));
-        $lastlogEqual=$db->fetchAll("select localts from eventlog where type in ('infonpc','infoloc','infonpc_close') and data='$lastInfoNpcData' and localts>".(time()-15)." LIMIT 1 "); // 33x faster than count(*)
+        $lastlogEqual=$db->fetchAll("select localts from eventlog where type in ('infonpc','infoloc','infonpc_close') and data='$lastInfoNpcData' and localts>".(time()-5)." LIMIT 1 "); // 33x faster than count(*)
         if (is_array($lastlogEqual) && isset($lastlogEqual[0]) && ($lastlogEqual[0]["localts"]>0)) {
             //Logger::debug("Skipping {$gameRequest[0]}");
             terminate();
@@ -687,7 +725,7 @@ if (in_array($gameRequest[0], ["playerinfo", "newgame"])) {
         
         // Check if the timestamp exists in the database
         if (!empty($narratorRecord)) {
-            $lastTrigger = (int) $narratorRecord[0]['value'];
+            $lastTrigger = intval($narratorRecord[0]['value'] ?? 0);
             $timeElapsed = time() - $lastTrigger;
 
             if ($timeElapsed < $cooldownPeriod) {
@@ -718,10 +756,13 @@ if (in_array($gameRequest[0], ["playerinfo", "newgame"])) {
 if (in_array($gameRequest[0],["bored"])) {
 
     //error_log(" bored event - exec trace"); // debug
-    $localGameRequest=$gameRequest;
-    $localGameRequest[0]="infoaction";
-    $localGameRequest[3].=". (Time passes without anyone in the group talking) ";
-    logEvent($localGameRequest);
+    if (abs(($gameRequest[2] ?? 0)-GetLastSpeechTs()) > 500000) { // 833333 = 2sec, 416667 = (( 1 /0.0000024))
+        $localGameRequest=$gameRequest;
+        $localGameRequest[0]="infoaction";
+        $localGameRequest[3].=". (Time passes without anyone in the group talking) ";
+        logEvent($localGameRequest);
+    }
+    
     $GLOBALS["ADD_PLAYER_BIOS"]=false;
 
     if ((isset($GLOBALS["BORED_EVENT_SERVERSIDE"])&&($GLOBALS["BORED_EVENT_SERVERSIDE"]))) {
@@ -736,9 +777,50 @@ if (in_array($gameRequest[0],["bored"])) {
     }
 }
 
+// Combat bark event - log as infoaction and apply cooldown
+if (in_array($gameRequest[0],["combatbark"])) {
+    // Add configurable cooldown for combat barks to prevent spam (global across all NPCs)
+    $combatBarkCooldownPeriod = isset($GLOBALS["COMBAT_BARK_COOLDOWN"]) ? intval($GLOBALS["COMBAT_BARK_COOLDOWN"]) : 90;
+    
+    // Use a global cooldown key (shared across all NPCs)
+    $cooldownKey = "COMBAT_BARK_LAST_TIMESTAMP";
+    
+    // Fetch the last combat bark trigger timestamp
+    $combatBarkRecord = $GLOBALS["db"]->fetchAll("SELECT value FROM conf_opts WHERE id='" . $GLOBALS["db"]->escape($cooldownKey) . "'");
+    
+    // Check if the timestamp exists in the database
+    if (!empty($combatBarkRecord)) {
+        $lastTrigger = (int) $combatBarkRecord[0]['value'];
+        $timeElapsed = time() - $lastTrigger;
+
+        if ($timeElapsed < $combatBarkCooldownPeriod) {
+            // Cooldown is still active, exit
+            Logger::info("COMBAT_BARK is on cooldown. Try again in " . ($combatBarkCooldownPeriod - $timeElapsed) . " seconds.");
+            terminate();
+        }
+    }
+    
+    // Update the timestamp in the database to the current time
+    $currentTimestamp = time();
+    $GLOBALS["db"]->upsertRowOnConflict(
+        "conf_opts",
+        array(
+            "id"    => $cooldownKey,
+            "value" => $currentTimestamp
+        ),
+        'id'
+    );
+    
+    $localGameRequest=$gameRequest;
+    $localGameRequest[0]="infoaction";
+    $localGameRequest[3].=" ({$GLOBALS["HERIKA_NAME"]} shouts during combat)";
+    logEvent($localGameRequest);
+    $GLOBALS["ADD_PLAYER_BIOS"]=false;
+}
+
 
 // Only allow functions when explicit request
-if (!in_array($gameRequest[0],["inputtext","inputtext_s","ginputtext","ginputtext_s","instruction","welcome"])) {
+if (!in_array($gameRequest[0],["inputtext","inputtext_s","ginputtext","ginputtext_s","narrator_inputtext","instruction","welcome","cheatmode"])) {
     $FUNCTIONS_ARE_ENABLED=false;
 }
 
@@ -775,13 +857,13 @@ if (is_array($currentParty)) {
 
 requireFilesRecursively(__DIR__.DIRECTORY_SEPARATOR."ext".DIRECTORY_SEPARATOR,"prerequest.php");
 
-if (in_array($gameRequest[0],["rechat"]) ) {
+if (in_array($gameRequest[0],["rechat","narration"]) ) {
     
     //RECHAT. Must choose if we continue conversation or no.
 
     $rechatHistory=DataRechatHistory();
     
-    if (sizeof($rechatHistory)>(intval($GLOBALS["RECHAT_H"])))    {   // TOO MUCH RECHAT
+    if (sizeof($rechatHistory)>=(intval($GLOBALS["RECHAT_H"])))    {   // TOO MUCH RECHAT
         //Logger::info("Rechat discarded, rechatHistory:".sizeof($rechatHistory).">{$GLOBALS["RECHAT_H"]}");
         // Lets try to summarize
         sem_release($semaphore);
@@ -804,29 +886,32 @@ if (in_array($gameRequest[0],["rechat"]) ) {
     
     if (sizeof($rechatHistory)>1) {
         // Lets make rechat wait a bit, so events while NPCs are speaking get into context// disabled if using new rechat fire event
-        $res = sem_release($semaphore) ? "semaphore released" : "semaphore not released";
-        Logger::info("HOLDING RECHAT EVENT ".sizeof($rechatHistory) ." / {$res} ");
+        sem_release($semaphore);
+        Logger::info("HOLDING RECHAT EVENT ".sizeof($rechatHistory));
         // Check if this conflicts with smart rechat
         // Is this doing something?
+        $semaphore_timeout = $GLOBALS["SEMAPHORES_TIMEOUT"] ?? 300;
         $ix = 0;
+        $t0 = time();    
         while (sem_acquire($semaphore,true) != true)  {
-            $ix++; 
             //$user_input_after=$db->fetchAll("select count(*) as N from eventlog where type='user_input' and ts>$gameRequest[1]"); // 72 ms 
             $user_input_after=$db->fetchAll("SELECT rowid as N FROM eventlog WHERE type='user_input' AND ts>{$gameRequest[1]} ORDER BY rowid DESC LIMIT 1 "); // faster, 1.5 ms
-            if (isset($user_input_after[0]))
+            if (isset($user_input_after[0])) {
                 if (isset($user_input_after[0]["N"]))
-                    if ($user_input_after[0]["N"]>0) {
-                        //Logger::info("Generation stopped because user_input. ".__LINE__);
-                        sem_release($semaphore); // debug
+                    if (intval($user_input_after[0]["N"])>0) {
+                        Logger::warn("[main] rechat event - generation stopped because user_input. " .__FILE__ . " " . __LINE__); // debug
                         terminate();
                     }
-
-            usleep(250);
-            if ($ix > 100000) { // debug
-                error_log(" loop break in " .__FILE__ . " " . __LINE__); // debug
-                sem_release($semaphore);
-                terminate();
+            }
+            $ix++; 
+            if ($ix > 1000) { 
+                $dt = time() - $t0; 
+                if ($dt > $semaphore_timeout) { // 
+                    Logger::warn("[main] rechat event - semaphore loop break after {$dt} sec in " .__FILE__ . " " . __LINE__); // debug
+                    terminate();
+                } else $ix = 0;
             } 
+            usleep(1007);
         }
     }
 
@@ -853,13 +938,14 @@ if ($MUST_END) {  // Shorthand for non LLM processing
     }    
     terminate();
 }
+
 if ($EXECUTION_MODE=="INJECTION_LOG") {
     
     terminate();
     
 }
 
-//Logger::debug("TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $startTime));
+//Logger::trace("TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $startTime));
 
 /**********************
  CONTEXT DATA BUILDING
@@ -879,7 +965,7 @@ require(__DIR__.DIRECTORY_SEPARATOR."processor".DIRECTORY_SEPARATOR."request.php
  Safe stop
 */
 //Logger::info("Current STOPALL_MAGIC_WORD ".STOPALL_MAGIC_WORD);
-if (in_array($gameRequest[0],["inputtext","inputtext_s","ginputtext","ginputtext_s","instruction"]) && preg_match(STOPALL_MAGIC_WORD, $gameRequest[3]) === 1) {
+if (in_array($gameRequest[0],["inputtext","inputtext_s","ginputtext","ginputtext_s","narrator_inputtext","instruction"]) && preg_match(STOPALL_MAGIC_WORD, $gameRequest[3]) === 1) {
     echo "{$GLOBALS["HERIKA_NAME"]}|command|Halt@\r\n";
     if (ob_get_level()) @ob_flush();
     $alreadysent[md5("{$GLOBALS["HERIKA_NAME"]}|command|Halt@\r\n")] = "{$GLOBALS["HERIKA_NAME"]}|command|Halt@\r\n";
@@ -902,7 +988,7 @@ if (in_array($gameRequest[0],["inputtext_s"])) {    // I stealth and targetet fo
 }
 
 /// LOG INTO DB. Will use this later.
-if ($gameRequest[0] != "diary") {
+if ($gameRequest[0] != "diary" && $gameRequest[0] != "cheatmode") {
     $db->insert(
         'eventlog',
         array(
@@ -923,11 +1009,37 @@ if ($gameRequest[0] != "diary") {
 
 // Check if this event  has been disabled 
 if (isset($GLOBALS["PROMPTS"][$gameRequest[0]]["extra"]["dontuse"])) {
-    
-    error_log(" event=".$gameRequest[0]." use=". (!($GLOBALS["PROMPTS"][$gameRequest[0]]["extra"]["dontuse"]) ? "Y" : "N") ." - exec trace"); // debug
-    
+    Logger::warn(" event=".$gameRequest[0]." use=". (!($GLOBALS["PROMPTS"][$gameRequest[0]]["extra"]["dontuse"]) ? "Y" : "N") ." - exec trace"); // debug
     if ($GLOBALS["PROMPTS"][$gameRequest[0]]["extra"]["dontuse"])
         terminate();
+}
+
+// Filter bleedout-related instructions based on RPG_COMMENTS setting
+// Note: Papyrus RecoverFromCombat sends "instruction" events when NPCs enter bleedout
+// These would trigger automatic AI responses, so we check RPG_COMMENTS to prevent that
+if ($gameRequest[0] === 'instruction' && isset($gameRequest[3])) {
+    if (stripos($gameRequest[3], 'wounded bleedingout') !== false || stripos($gameRequest[3], 'lost combat') !== false) {
+        // Check if bleedout RPG comments are enabled
+        if (empty($GLOBALS["RPG_COMMENTS"]) || !in_array('bleedout', $GLOBALS["RPG_COMMENTS"])) {
+            Logger::info("Bleedout instruction skipped (RPG comment disabled)");
+            terminate();
+        }
+        
+        // Apply RPG_COMMENTS_CHANCE probability
+        $chance = 100;
+        if (isset($GLOBALS["RPG_COMMENTS_CHANCE"])) {
+            $chance = intval($GLOBALS["RPG_COMMENTS_CHANCE"]);
+        }
+        $chance = max(0, min(100, $chance));
+        
+        if ($chance < 100) {
+            $roll = rand(1, 100);
+            if ($roll > $chance) {
+                Logger::info("Bleedout instruction skipped (failed chance roll: {$roll} > {$chance})");
+                terminate();
+            }
+        }
+    }
 }
 
 
@@ -976,7 +1088,7 @@ if (isset($GLOBALS["CURRENT_TASK"]) && $GLOBALS["CURRENT_TASK"] && $gameRequest[
 // Offer memory in CONTEXT 
 
 
-if (in_array($gameRequest[0],["inputtext","inputtext_s","ginputtext","ginputtext_s","rechat"]) ) {
+if (in_array($gameRequest[0],["inputtext","inputtext_s","ginputtext","ginputtext_s","narrator_inputtext","rechat","narration"]) ) {
 
     $memoryInjection=offerMemory($gameRequest, $DIALOGUE_TARGET);
     //Logger::info("Memory injection:".json_encode($memoryInjection));
@@ -984,7 +1096,7 @@ if (in_array($gameRequest[0],["inputtext","inputtext_s","ginputtext","ginputtext
     if (!empty($memoryInjection)) {
         
         //$memoryInjectionCtx[]= array('role' => 'user', 'content' => $gameRequest[3]);
-        $memoryInjectionCtx[]= array('role' => 'user', 'content' => "#MEMORY: {$GLOBALS["HERIKA_NAME"]} remembers this: " . trim($memoryInjection) . "\n"); 
+        $memoryInjectionCtx[]= array('role' => 'user', 'content' => "<memory> {$GLOBALS["HERIKA_NAME"]} remembers this: [$memoryInjection] </memory>");
         //$GLOBALS["COMMAND_PROMPT"].="'{$gameRequest[3]}'\n{$GLOBALS["HERIKA_NAME"]}):$memoryInjection\n";
         
     } else {
@@ -999,7 +1111,9 @@ if (in_array($gameRequest[0],["inputtext","inputtext_s","ginputtext","ginputtext
 
 // array('role' => $currentSpeaker, 'content' => implode("\n", $buffer));
 
-if (in_array($gameRequest[0],["rechat"]) ) {
+
+// Rechat case
+if (in_array($gameRequest[0],["rechat","narration"]) ) {
     // CHAOS mode
     
     if (isset($GLOBALS["RECHAT_ALLOW_ACTIONS"]) && $GLOBALS["RECHAT_ALLOW_ACTIONS"]) {
@@ -1054,7 +1168,7 @@ if (in_array($gameRequest[0],["rechat"]) ) {
     }
 }
 
-
+// Instruction reinforcement
 if (in_array($gameRequest[0],["instruction"]) ) {
     
     $GLOBALS["PATCH_PROMPT_ENFORCE_ACTIONS"]=true;
@@ -1062,6 +1176,7 @@ if (in_array($gameRequest[0],["instruction"]) ) {
     
 }
 
+// Enforce actions
 if (isset($GLOBALS["ENFORCE_ACTIONS_PROMPT"]) && $GLOBALS["ENFORCE_ACTIONS_PROMPT"]) {
     $GLOBALS["PATCH_PROMPT_ENFORCE_ACTIONS"]=true;
     $GLOBALS["COMMAND_PROMPT_ENFORCE_ACTIONS"]="(If {$GLOBALS["HERIKA_NAME"]} is just speaking, use action \"Talk\". If another action is even remotely contextually appropriate, use it, even if in doubt)";
@@ -1069,13 +1184,13 @@ if (isset($GLOBALS["ENFORCE_ACTIONS_PROMPT"]) && $GLOBALS["ENFORCE_ACTIONS_PROMP
 
 
 // Cooldown definitions
-$COOLDOWNMAP["ComeCloser"]=600/0.00864;
+$COOLDOWNMAP["ComeCloser"]=620/0.00864;
 $COOLDOWNMAP["WaitHere"]=300/0.00864;
 $COOLDOWNMAP["UseSoulGaze"]=300/0.00864;
 $COOLDOWNMAP["InspectSurroundings"]=300/0.00864;
 $COOLDOWNMAP["Inspect"]=300/0.00864;
-$COOLDOWNMAP["Relax"]=180/0.00864;
-$COOLDOWNMAP["ExtCmdTakeItem"]=180/0.00864;
+$COOLDOWNMAP["Relax"]=300/0.00864;
+$COOLDOWNMAP["ExtCmdTakeItem"]=240/0.00864;
 
 
 if ($GLOBALS["FUNCTIONS_ARE_ENABLED"]) {
@@ -1109,7 +1224,7 @@ if (isset($npcRoleMastered["is_rolemastered"])) {
     $GLOBALS["NPC_ROLEMASTERED"]=true;
     $GLOBALS["ENABLED_FUNCTIONS"][]="ReturnBackHome";
     $GLOBALS["FUNCTIONS"][]=$GLOBALS["BASE_FUNCTIONS"]["ReturnBackHome"];
-    error_log("{$GLOBALS["HERIKA_NAME"]}_is_rolemastered");
+    Logger::debug("{$GLOBALS["HERIKA_NAME"]} is_rolemastered");
     if ((rand(0,5)!==0)){ // Remeber goal from time to time
         $GLOBALS["PATCH_PROMPT_ENFORCE_ACTIONS"]=true;
         $GLOBALS["COMMAND_PROMPT_ENFORCE_ACTIONS"]="(If {$GLOBALS["HERIKA_NAME"]} is just speaking, use action \"Talk\". If another action is even remotely contextually appropriate, use it, even if in doubt)";
@@ -1117,7 +1232,6 @@ if (isset($npcRoleMastered["is_rolemastered"])) {
 
     }
 } 
-
 
 // MINIME_T5 STUFF, command assistant
 
@@ -1149,16 +1263,14 @@ if ($GLOBALS["FUNCTIONS_ARE_ENABLED"]) {
                         )
                     );
                     Logger::info("ENFORCING COMMAND: <{$preCommand["is_command"]}>");
-                    //$memoryInjectionCtx=[]; // Disable memorie when command.
-                    $COMMAND_PROMPT_ENFORCE_ACTIONS.=" (USER MAY WANTS YOU TO ISSUE ACTION {$preCommand["is_command"]}).";
+                    //$memoryInjectionCtx=[]; // Disable memories when command.
+                    $COMMAND_PROMPT_ENFORCE_ACTIONS.="(USER MAY WANTS YOU TO ISSUE ACTION {$preCommand["is_command"]}).";
                     $GLOBALS["PATCH_PROMPT_ENFORCE_ACTIONS"]=true;
                 } 
             }
-        }
-
-       
+        }       
     }
-    //command prompt function now injected in json_response.php with actions // ???
+    //command prompt function now injected in json_response.php with actions // ??? XMD
     $GLOBALS["COMMAND_PROMPT"].=$GLOBALS["COMMAND_PROMPT_FUNCTIONS"];
 }
 
@@ -1199,15 +1311,23 @@ if (isset($GLOBALS["OGHMA_HINT"]) && $GLOBALS["OGHMA_HINT"]) {
 //error_log("oghma main: {$GLOBALS["OGHMA_HINT"]} - dbg");
 
     $head[] = array('role' => 'system', 'content' =>  
-        strtr($GLOBALS["PROMPT_HEAD"] . "\n".$GLOBALS["HERIKA_PERS"] . $dynamicBiography . "\n" . $GLOBALS["OGHMA_HINT"]."\n". $GLOBALS["COMMAND_PROMPT"],
-        ["#PLAYER_NAME#"=>$GLOBALS["PLAYER_NAME"]])
+        strtr($GLOBALS["PROMPT_HEAD"] . "\n\n<character>\n".$GLOBALS["HERIKA_PERS"] . $dynamicBiography . "\n</character>\n\n<knowledge>\n" . $GLOBALS["OGHMA_HINT"]."\n</knowledge>\n\n<general_instructions>\n". $GLOBALS["COMMAND_PROMPT"]."</general_instructions>\n",
+        ["#PLAYER_NAME#"=>$GLOBALS["PLAYER_NAME"],"#HERIKA_NAME#"=>$GLOBALS["HERIKA_NAME"]])
+
     );
+    //avoid reinjecting command prompt that we have already appended
+    $GLOBALS["COMMAND_PROMPT"] = "";
 } else {
-    $head[] = array('role' => 'system', 'content' =>  
-        strtr($GLOBALS["PROMPT_HEAD"] . "\n".$GLOBALS["HERIKA_PERS"] . $dynamicBiography . "\n". $GLOBALS["COMMAND_PROMPT"],
-        ["#PLAYER_NAME#"=>$GLOBALS["PLAYER_NAME"]])
+    $head[] = array('role' => 'system', 'content' =>
+        strtr($GLOBALS["PROMPT_HEAD"] . "\n\n<character>\n".$GLOBALS["HERIKA_PERS"] . $dynamicBiography . "\n</character>\n\n<general_instructions>\n". $GLOBALS["COMMAND_PROMPT"]."\n</general_instructions>\n",
+        ["#PLAYER_NAME#"=>$GLOBALS["PLAYER_NAME"],"#HERIKA_NAME#"=>$GLOBALS["HERIKA_NAME"]])
+        //strtr($GLOBALS["PROMPT_HEAD"] . "\n\n<character>\n".$GLOBALS["HERIKA_PERS"] . $dynamicBiography . "\n". $GLOBALS["COMMAND_PROMPT"],
+        //["#PLAYER_NAME#"=>$GLOBALS["PLAYER_NAME"]])
     );
+    //avoid reinjecting command prompt that we have already appended
+    $GLOBALS["COMMAND_PROMPT"] = "";
 }
+
 
 
 
@@ -1245,7 +1365,7 @@ if ($gameRequest[0] == "funcret") {
 
 
 }  else {
-    if (in_array($GLOBALS["CURRENT_CONNECTOR"],["koboldcpp","openai","google_openai","openrouter"])) {  // OLD SCHEMA
+    if (in_array(($GLOBALS["CURRENT_CONNECTOR"] ?? ''),["koboldcpp","openai","google_openai","openrouter"])) {  // OLD SCHEMA
         if (!empty($request)) {
             if (sizeof($memoryInjectionCtx)>0) {
                 if (!isset($prompt)) {
@@ -1454,17 +1574,19 @@ if (php_sapi_name()=="cli" && !getenv('PHPUNIT_TEST')) {
 
 }
 
-
-// POST PROCESS TASKS
 if (isset($semaphore) && $semaphore)
     sem_release($semaphore);
 
 if (isset($semaphore2) && $semaphore2)
     sem_release($semaphore2);
 
+
 while(!getenv("PHPUNIT_TEST") && ob_get_length() && ob_end_flush());
+
+// POST PROCESS TASKS
 requireFilesRecursively(__DIR__.DIRECTORY_SEPARATOR."ext".DIRECTORY_SEPARATOR,"prepostrequest.php");
 require(__DIR__.DIRECTORY_SEPARATOR."processor".DIRECTORY_SEPARATOR."postrequest.php");
 requireFilesRecursively(__DIR__.DIRECTORY_SEPARATOR."ext".DIRECTORY_SEPARATOR,"postrequest.php");
+
 
 ?>

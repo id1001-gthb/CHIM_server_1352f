@@ -1,16 +1,18 @@
 <?php
 
-require_once("lib/utils.php");
-
 /* Voice Sample Extractor */
 
-
 $path = dirname((__FILE__)) . DIRECTORY_SEPARATOR;
-require_once($path . "conf".DIRECTORY_SEPARATOR."conf.php"); // API KEY must be there
-require_once($path . "lib" .DIRECTORY_SEPARATOR."{$GLOBALS["DBDRIVER"]}.class.php");
-require_once($path . "lib".DIRECTORY_SEPARATOR."fuz_convert.php"); // API KEY must be there
-require_once($path . "lib" .DIRECTORY_SEPARATOR."auditing.php");
-require_once($path . "lib" .DIRECTORY_SEPARATOR."logger.php");
+$GLOBALS["ENGINE_PATH"]=$path;
+
+require_once $path . "lib/utils.php";
+require_once $path . "conf/conf.php"; // API KEY must be there
+require_once $path . "lib/{$GLOBALS["DBDRIVER"]}.class.php";
+require_once $path . "lib/fuz_convert.php"; // API KEY must be there
+require_once $path . "lib/auditing.php";
+require_once $path . "lib/logger.php";
+
+$db = new sql();
 
 function normalize_endpoint_url($url) {
     // Remove trailing slashes
@@ -18,25 +20,30 @@ function normalize_endpoint_url($url) {
     return $url;
 }
 
-$GLOBALS["AUDIT_RUNID_REQUEST"]="vsx";
+$GLOBALS["AUDIT_RUNID_REQUEST"] = "vsx";
 
 // Put info into DB asap
-$db=new sql();
 $voicelogic = $GLOBALS["TTS"]["XTTSFASTAPI"]["voicelogic"]; 
 
+
 // Lock
-$semaphoreKey2 =abs(crc32(__FILE__));
+
+$semaphoreKey2 =abs(crc32(__FILE__)); 
 $semaphore = sem_get($semaphoreKey2);
+$GLOBALS["SEMAPHORES"]["VSX"] = $semaphore;
+$semaphore_timeout = $GLOBALS["SEMAPHORES_TIMEOUT"] ?? 300;
 $ix = 0;
+$t0 = time();    
 while (sem_acquire($semaphore,true) != true)  {
     $ix++;
-    if ($ix > 150000) {
-        error_log(" loop break in " .__FILE__ . " " . __LINE__); // debug
-        sem_release($semaphore);
-        terminate();
+    if ($ix > 20000) {
+        $dt = time() - $t0; 
+        if ($dt > $semaphore_timeout) {  
+            Logger::warn("[vsx] semaphore loop break after {$dt} sec in " .__FILE__ . " " . __LINE__); // debug
+            terminate();
+        } else $ix = 0;
     }
-    //usleep(10); // debug
-    $nano = time_nanosleep(0, 250000);
+    usleep(47); 
 }
 
 
@@ -204,4 +211,7 @@ curl_setopt_array($curl, array(
 $response = curl_exec($curl);
 
 audit_log("vsx.php voice available for {$_GET["codename"]}");
+
+if (isset($semaphore) && $semaphore) 
+    @sem_release($semaphore);
 ?>

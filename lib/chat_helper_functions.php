@@ -116,18 +116,20 @@ function cleanResponse($rawResponse)
     return $sentenceXX;
 }
 
-function br2nl($string)
-{
-    return preg_replace('/[\r\n]+/', '', preg_replace('/\<br(\s*)?\/?\>/i', "", $string));
-}
-
-function findDotPosition($s_string)   
-{
+function findDotPosition($s_string) {
     
     $lastChar = substr($s_string, -1);
 
-    if ($lastChar === ".")  // Dont eval on .. wait till next tokens
-        return false;
+    // Only skip if it ends with ellipsis (...), not regular sentence endings
+    // This allows streaming to work properly for complete sentences
+    if ($lastChar === ".") {
+        // Check if it's an ellipsis (...)
+        $last3Chars = substr($s_string, -3);
+        if ($last3Chars === "...") {
+            return false; // Don't process ellipsis yet
+        }
+        // Otherwise, allow processing of regular sentence endings
+    }
     
     $dotPosition = strrpos($s_string, "."); // last dot in string
     
@@ -144,6 +146,11 @@ function findDotPosition($s_string)
     }
 
     return false;
+}
+
+function br2nl($string)
+{
+    return preg_replace('/[\r\n]+/', '', preg_replace('/\<br(\s*)?\/?\>/i', "", $string));
 }
 
 function split_at_end_of_sentence($paragraph) {
@@ -255,7 +262,7 @@ function split_sentences_stream($paragraph)
         $splitSentences[] = trim($currentSentence);
     }
 
-    //error_log("<$paragraph> => ".implode("|", $splitSentences)); //debug - already broken here 
+    //error_log("<$paragraph> => ".implode("|", $splitSentences)); //debug
     return $splitSentences;
 }
 
@@ -499,7 +506,11 @@ function returnLines($lines,$writeOutput=true)
 
         if (isset($forceMood)) {
             $mood = $forceMood;
+        } elseif (isset($GLOBALS["LAST_LLM_RESPONSE"]["mood"]) && !empty($GLOBALS["LAST_LLM_RESPONSE"]["mood"])) {
+            // Use mood from JSON response (set by connector)
+            $mood = trim($GLOBALS["LAST_LLM_RESPONSE"]["mood"]);
         } elseif (!empty($matches) && !empty($matches[1]) && isset($matches[1][0])) {
+            // Fallback to SSML-style mood extraction for backward compatibility
             $mood = $matches[1][0];
         } else {
             $mood = "default";
@@ -642,6 +653,11 @@ function returnLines($lines,$writeOutput=true)
                 require_once(__DIR__."/../tts/tts-zonos_gradio.php");
                 $ttsOutput=$GLOBALS["TTS_IN_USE"]($responseForTTS, $mood, $responseForSubtitles);
 
+            } else if ($GLOBALS["TTSFUNCTION"] == "cartesia") {
+
+                require_once(__DIR__."/../tts/tts-cartesia.php");
+                $ttsOutput=$GLOBALS["TTS_IN_USE"]($responseForTTS, $mood, $responseForSubtitles);
+
             } 
             else {
                 if (file_exists(__DIR__."/../tts/tts-".$GLOBALS["TTSFUNCTION"].".php")) {
@@ -756,6 +772,14 @@ function returnLines($lines,$writeOutput=true)
                     }
 
                     $GLOBALS["SCRIPTLINE_LISTENER_ATOMIC"]=strtr($GLOBALS["SCRIPTLINE_LISTENER_ATOMIC"],["Dragonborn"=>$GLOBALS["PLAYER_NAME"]]);
+                    
+                    $npcList=DataBeingsInCloseRange();
+                    $npcs=explode("|",$npcList);
+                    if (is_array($npcs) && (!in_array($GLOBALS["SCRIPTLINE_LISTENER"],$npcs))) {
+                        Logger::info("Listener {$GLOBALS["SCRIPTLINE_LISTENER"]} not around, forcing player: {$GLOBALS["SCRIPTLINE_LISTENER"]} {$GLOBALS["SCRIPTLINE_LISTENER_ATOMIC"]} {$GLOBALS["SCRIPTLINE_LISTENER_CYCLE"]} {$npcList} ");
+                        $GLOBALS["SCRIPTLINE_LISTENER"]=$GLOBALS["PLAYER_NAME"];
+
+                    }
 
                     Logger::info("Applying listenerFix2: {$GLOBALS["SCRIPTLINE_LISTENER"]} {$GLOBALS["SCRIPTLINE_LISTENER_ATOMIC"]}  {$GLOBALS["SCRIPTLINE_LISTENER_CYCLE"]}");
                     //$GLOBALS["SCRIPTLINE_LISTENER"]=trim($listenerFix2[ $GLOBALS["SCRIPTLINE_LISTENER_CYCLE"]]);
@@ -792,14 +816,11 @@ function returnLines($lines,$writeOutput=true)
                             'speaker' => $outBuffer["actor"],
                             'listener' =>$GLOBALS["SCRIPTLINE_LISTENER_ATOMIC"],
                             'sess' => 'pending',
-                            //'emotion' => $s_emo,
-                            //'intensity' => $s_emo_int,
                             'mood' => $GLOBALS["PATCH_ORIGINAL_MOOD_ISSUED"]
         
         
                         )
                     );
-
                 }
 
                 file_put_contents(__DIR__."/../log/output_to_plugin.log",$GLOBALS["DEBUG_DATA"]["OUTPUT_LOG"], FILE_APPEND | LOCK_EX);
@@ -828,8 +849,6 @@ function returnLines($lines,$writeOutput=true)
 
                 )
             );
-
-
             
             // RECHAT
             $originalRequest=$GLOBALS["gameRequest"];
@@ -1517,11 +1536,11 @@ function offerMemory($gameRequest, $DIALOGUE_TARGET)
     if (isset($memories[0])) {
         Logger::trace(print_r($memories[0],true));
 
-        if (($memories[0]["rank_any"]==$memories[0]["rank_all"])&&($memories[0]["rank_any"]>0.25)) {
+        if (($memories[0]["rank_any"]==$memories[0]["rank_all"])&&($memories[0]["rank_any"]> (0.25+$GLOBALS["MEMORY_THRESHOLD_MODIFIER"]) )) {
             
             $memory=(isset($memories[0]["summary"])?$memories[0]["summary"]:"");
             
-        } else if ((($memories[0]["rank_all"]+$memories[0]["rank_any"])/2)>0.25) {
+        } else if ((($memories[0]["rank_all"]+$memories[0]["rank_any"])/2)> (0.25+ $GLOBALS["MEMORY_THRESHOLD_MODIFIER"])) {
             
             $memory=(isset($memories[0]["summary"])?$memories[0]["summary"]:"");
             
@@ -1529,12 +1548,18 @@ function offerMemory($gameRequest, $DIALOGUE_TARGET)
             
             $memory=(isset($memories[0]["summary"])?$memories[0]["summary"]:"");
             
+        } else if (($memories[0]["rank_any"]> (0.50 + $GLOBALS["MEMORY_THRESHOLD_MODIFIER"])) && isset($memories[0]["mixed_distance"])) {// Search by mixed vector/fts .
+            
+            $memory=(isset($memories[0]["summary"])?$memories[0]["summary"]:"");
+            
         } else {
-           Logger::trace("Memory discarded by scoring");
+           Logger::trace("[MEMORY] Memory discarded by scoring");
+           error_log("[MEMORY] Memory discarded by scoring");
            return "";
         }
     } else {
-        Logger::trace("Memory not found");
+        Logger::trace("[MEMORY] Memory not found");
+        error_log("[MEMORY] Memory not found");
         return "";
     }
     
@@ -1557,7 +1582,7 @@ function offerMemory($gameRequest, $DIALOGUE_TARGET)
         Logger::trace("Final memory <".substr($memory,0,25)."...>");
 
     }
-    
+    //error_log("[MEMORY] Returning memory");
     return ($memory);
 }
 
@@ -1705,19 +1730,19 @@ function logEvent($dataArray,$forcePeople='')
             Logger::error("logEvent: wrong game timestamp " . ($dataArray[2] ?? 0) . " replaced with " . $new_gts);
             $dataArray[2] = $new_gts;
         }
-        //itemfound	Aeter found 1
+        //itemfound	Player found 1
         
         //$dataArray[0] $dataArray[3] $GLOBALS["PLAYER_NAME"]
         $b_skip = (($dataArray[0] == 'itemfound') && ($dataArray[3] == $GLOBALS["PLAYER_NAME"]." found 1"));
         
         if (!$b_skip) {        
-            $db->insert(
+            $insertResult = $db->insert(
                 'eventlog',
                 array(
                     'ts' => $dataArray[1],
                     'gamets' => $dataArray[2],
                     'type' => $dataArray[0],
-                    'data' => ($dataArray[3] ?? ""),
+                    'data' => $dataArray[3] ?? '',
                     'sess' => 'pending',
                     'localts' => time(),
                     'people'=> ($forcePeople)?$forcePeople:$GLOBALS["CACHE_PEOPLE_LIMITED"],

@@ -22,7 +22,7 @@ if ($gameRequest[0] == "init") { // Reset responses if init sent (Think about th
     $db->delete("currentmission", "gamets>={$gameRequest[2]}  ");
     $db->delete("currentmission", "localts>$now   ");
     $db->delete("diarylog", "gamets>={$gameRequest[2]}  ");
-    $db->delete("diarylog", "localts>=0$now ");
+    $db->delete("diarylog", "localts>=$now ");
     $db->delete("books", "gamets>=0{$gameRequest[2]}  ");
     $db->delete("books", "localts>$now ");
     $db->delete("responselog", " 1=1 ");
@@ -255,48 +255,62 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
     error_reporting(E_ALL);
     $speech = json_decode($gameRequest[3], true);
    
-    //error_log(print_r($speech,true)); // debug 
-    //error_log("_speech comm ");
-
+    // Logger::debug(print_r($speech,true));
     if (is_array($speech)) {
-
-        $s_json = get_conf_opts_value('debug_data_raw', true);
-
-        if (strlen($s_json) > 0)
-            $arr_raw = json_decode($s_json, true);
 
         $s_emo = "-";
         $s_emo_int = "-";
         $s_mood = "-";
 
-        if (isset($arr_raw)) {
-            $s_msg = $arr_raw["message"] ?? "";
-            $s_speaker = $arr_raw["character"] ?? "";
-            $s_targets = $arr_raw["listener"] ?? "";
+        if (isset($GLOBALS["LAST_LLM_RESPONSE"]) && !empty($GLOBALS["LAST_LLM_RESPONSE"])) {
+            $s_speaker = $GLOBALS["LAST_LLM_RESPONSE"]["character"] ?? "";
+            $s_targets = $GLOBALS["LAST_LLM_RESPONSE"]["listener"] ?? "";
             if (strpos($s_targets, ',') === false) {
                 $s_target = $GLOBALS["db"]->escape($s_targets);
             } else {
                 $arr_targets = explode(',', $s_targets);
                 $s_target = $GLOBALS["db"]->escape($arr_targets[0]);
             }
-            if(($s_speaker == $speech["speaker"]) && ($s_targets == $speech["listener"])) {
-                $s_emo = $arr_raw["emotion"] ?? "-";
-                $s_emo_int = $arr_raw["emotion intensity"] ?? "-";
-                $s_mood = $arr_raw["mood"] ?? "-";
+
+            //if(($s_speaker == $speech["speaker"]) && ($s_targets == $speech["listener"])) {
+                $s_emo = $GLOBALS["LAST_LLM_RESPONSE"]["emotion"] ?? "-";
+                $s_emo_int = $GLOBALS["LAST_LLM_RESPONSE"]["emotion intensity"] ?? "-";
+                $s_mood = trim($GLOBALS["LAST_LLM_RESPONSE"]["mood"] ?? '_');
+            //}
+        } else { // retrieve from conf opts table
+            $s_json = get_conf_opts_value('debug_data_raw', true);
+
+            if (strlen($s_json) > 0)
+                $arr_raw = json_decode($s_json, true);
+
+
+            if (isset($arr_raw)) {
+                $s_msg = $arr_raw["message"] ?? "";
+                $s_speaker = $arr_raw["character"] ?? "";
+                $s_targets = $arr_raw["listener"] ?? "";
+                if (strpos($s_targets, ',') === false) {
+                    $s_target = $GLOBALS["db"]->escape($s_targets);
+                } else {
+                    $arr_targets = explode(',', $s_targets);
+                    $s_target = $GLOBALS["db"]->escape($arr_targets[0]);
+                }
+                if(($s_speaker == $speech["speaker"]) && ($s_targets == $speech["listener"])) {
+                    $s_emo = $arr_raw["emotion"] ?? "-";
+                    $s_emo_int = $arr_raw["emotion intensity"] ?? "-";
+                    $s_mood = trim($arr_raw["mood"] ?? "-");
+                }
+
+                /*
+                $s_speaker = $GLOBALS["db"]->escape($arr_raw["character"] ?? "");
+                $s_speech = $GLOBALS["db"]->escape(substr($s_msg,0,MINIMUM_SENTENCE_SIZE-5));
+
+                Logger::debug("_speech: $s_speaker - $s_target | $s_emo $s_emo_int $s_mood"); //debug 
+                */
+                //Logger::debug("_speech: $s_speaker | $s_emo $s_emo_int $s_mood - $s_msg"); //debug 
+            } else {
+                Logger::debug("_speech: conf opt not found ".__FILE__.__LINE__);
             }
-
-            /*
-            $s_speaker = $GLOBALS["db"]->escape($arr_raw["character"] ?? "");
-            $s_speech = $GLOBALS["db"]->escape(substr($s_msg,0,MINIMUM_SENTENCE_SIZE-5));
-
-            error_log("_speech: $s_speaker - $s_target | $s_emo $s_emo_int $s_mood"); //debug 
-            */
-            //error_log("_speech: $s_speaker | $s_emo $s_emo_int $s_mood - $s_msg"); //debug 
-        } else {
-            error_log("_speech: conf opt not found ");
         }
-
-        //-----------------
         $db->insert(
             'speech',
             array(
@@ -328,7 +342,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
         array(
             'ts' => $gameRequest[1],
             'gamets' => $gameRequest[2],
-            'title' => $gameRequest[3],
+            'title' => substr($gameRequest[3],1),   // Initial strange "p" at the beginning.
             'sess' => 'pending',
             'localts' => time()
         )
@@ -422,7 +436,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
         $questCommentChance = (int)str_replace('%', '', $GLOBALS["QUEST_COMMENT_CHANCE"]);
     
         // Generate a random integer between 1 and 100 (inclusive).
-        $randomChance = rand(1, 100);
+        $randomChance = random_int(1, 100);
     
         // Adjust the logic to reverse the chance
         if ($randomChance > $questCommentChance || $GLOBALS["QUEST_COMMENT"] === false) {
@@ -548,11 +562,11 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
 
     createProfile($localName,[],false,$baseProfile);
     audit_log("comm.php addnpc $localName");
-error_log("comm.php addnpc {$localName} - exec trace "); // debug
+    //error_log("comm.php addnpc {$localName} - exec trace "); // debug
     $MUST_END=true;
     
     
-} elseif (strpos($gameRequest[0], "util_location_name")===0) {    // addnpc 
+} elseif (strpos($gameRequest[0], "util_location_name")===0) {    
     
     
     $splitNameBase=explode("/",$gameRequest[3]);
@@ -892,8 +906,8 @@ error_log("comm.php addnpc {$localName} - exec trace "); // debug
                 if (!mb_check_encoding($dynamicContent, 'UTF-8')) {
                     $dynamicContent = mb_convert_encoding($dynamicContent, 'UTF-8', 'UTF-8'); // Fix encoding
                 }
-                if (strlen($dynamicContent) > 5000) {
-                    $dynamicContent = substr($dynamicContent, 0, 5000) . '... [truncated]'; // Limit length
+                if (strlen($dynamicContent) > 50000) {
+                    $dynamicContent = substr($dynamicContent, 0, 50000) . '... [truncated]'; // Limit length
                 }
                 $dynamicContent = str_replace(['<?php', '<?', '?>'], ['&lt;?php', '&lt;?', '?&gt;'], $dynamicContent); // Escape PHP tags
                 

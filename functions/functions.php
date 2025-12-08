@@ -717,8 +717,13 @@ function getFunctionCodeName($key) {
 }
 
 function getFunctionTrlName($key) {
-    return $GLOBALS["F_NAMES"][$key];
-    
+    $s_res = "";
+    if (isset($GLOBALS["F_NAMES"][$key]))
+        $s_res = $GLOBALS["F_NAMES"][$key];
+    else {
+        Logger::warn("[functions] function name not found! key={$key} F_NAMES=".print_r( $GLOBALS["F_NAMES"],true).__FILE__." ".__LINE__);
+    }
+    return $s_res;
 }
 
 function findFunctionByName($name) {

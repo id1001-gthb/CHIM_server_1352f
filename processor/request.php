@@ -144,15 +144,17 @@ if ($gameRequest[0] == "funcret") { // Take out the functions part
 	
 	if (isset($PROMPTS[$gameRequest[0]]["player_request"])) {
 		$request = selectRandomInArray($PROMPTS[$gameRequest[0]]["cue"]); // Add support for arrays here
-		if (strlen($request) < 1) error_log(" request.php: selectRandomInArray empty list PROMPTS[{$gameRequest[0]}][cue] "); // debug		
+		if (strlen($request) < 1) 
+			Logger::debug(" request.php: selectRandomInArray empty list PROMPTS[{$gameRequest[0]}][cue] "); // debug		
 		$gameRequest[3]=selectRandomInArray($PROMPTS[$gameRequest[0]]["player_request"]);	// Overwrite
-		// error_log(__FILE__." ".__LINE__." $request {$gameRequest[3]}");
+		// Logger::debug(__FILE__." ".__LINE__." $request {$gameRequest[3]}");
 	} else {
 		if (isset($PROMPTS[$gameRequest[0]]["cue"])) {
 			$request = selectRandomInArray($PROMPTS[$gameRequest[0]]["cue"]); // Add support for arrays here
-			if (strlen($request) < 1) error_log(" request.php: selectRandomInArray empty list PROMPTS[{$gameRequest[0]}][cue] "); // debug		
+			if (strlen($request) < 1) 
+				Logger::debug(" request.php: selectRandomInArray empty list PROMPTS[{$gameRequest[0]}][cue] "); // debug		
 		} else {
-			Logger::warn("Request cue is empty! [".$gameRequest[0]."] - ".print_r(($PROMPTS[$gameRequest[0]] ?? ""),true)." - ".__FILE__.":".__LINE__);
+			Logger::debug("Request cue is empty! [".$gameRequest[0]."] - ".print_r(($PROMPTS[$gameRequest[0]] ?? ""),true)." - ".__FILE__.":".__LINE__);
 			$request = "{$GLOBALS["TEMPLATE_DIALOG"]}";
 		}
 	}

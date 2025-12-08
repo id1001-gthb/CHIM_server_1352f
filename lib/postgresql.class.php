@@ -4,7 +4,7 @@ require_once("logger.php");
 class sql
 {
     private static $link = null;
-    private $queryTimeThreshold = 0.5; // Time threshold in seconds
+    private $queryTimeThreshold = 0.85; // Time threshold in seconds
     private $connString = "host=localhost dbname=dwemer user=dwemer password=dwemer";  // connect_timeout=90
     private $debug_level = 3; // 0 = quiet .. 3=use timer .. 5 = verbose
     

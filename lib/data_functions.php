@@ -51,32 +51,11 @@ function ReplacePlayerNamePlaceholder($s_input) {
     return $s_res;
 }
 
-if (!function_exists('set_conf_opts_value')) {
-function set_conf_opts_value($key, $value) {
-    // Upsert new value
-    $l_key = strtolower($key);
-    return $GLOBALS['db']->upsertRowOnConflict(
-        'conf_opts',
-        array(
-            'id' => "{$l_key}",
-            'value' => "{$value}"
-        ),
-        'id'
-    );
-}
-}
-
-if (!function_exists('get_conf_opts_value')) {
-function get_conf_opts_value($key, $preserveCase=false) {
+function get_conf_opts_value($key, $preserveCase=true) {
     $s_res = "";
-    $db = $GLOBALS['db'];
-    $l_key = strtolower($key);
-    $e_key = $db->escape($l_key);    
-    
+    $e_key = $GLOBALS['db']->escape(strtolower($key));    
     if (strlen($key) > 0) {
-
-        $query = "SELECT * FROM conf_opts WHERE (LOWER(id)='{$e_key}') LIMIT 1 ";
-
+        $query = "SELECT * FROM public.conf_opts WHERE (LOWER(id)='{$e_key}') LIMIT 1 ";
         $ret = $GLOBALS["db"]->fetchAll($query);
         if ($ret) {
             if ($preserveCase)
@@ -87,7 +66,19 @@ function get_conf_opts_value($key, $preserveCase=false) {
     }
     return $s_res;
 }
+
+function set_conf_opts_value($key, $value) {
+    $l_key = $GLOBALS['db']->escape(strtolower($key));
+    return $GLOBALS['db']->upsertRowOnConflict(
+        'conf_opts',
+        array(
+            'id' => "{$l_key}",
+            'value' => "{$value}"
+        ),
+        'id'
+    );
 }
+
 
 function DataDequeue()
 {
@@ -328,7 +319,7 @@ function DataPosibleLocationsToGo()
     global $db;
     $lastDialogFull = array();
     $results = $db->fetchAll("select  a.data  as data  FROM  eventlog a 
-    WHERE type in ('infoloc')  order by gamets desc,ts desc LIMIT 5 OFFSET 0");
+    WHERE type in ('infoloc')  order by gamets desc,ts desc LIMIT 50 OFFSET 0");
     $lastData = "";
     $retData = [];
     foreach ($results as $row) {
@@ -595,7 +586,7 @@ function DataLastDataExpandedForNPC($actor, $lastNelements = -10,$sqlfilter="") 
 
         ksort($lastDialogFull);
         
-        $results = $db->fetchAll("SELECT gamets,data,ts FROM eventlog where type in ('inputtext','inputtext_s','ginputtext','ginputtext_s')
+        $results = $db->fetchAll("SELECT gamets,data,ts FROM eventlog where type in ('inputtext','inputtext_s','ginputtext','ginputtext_s','narrator_inputtext')
             order by gamets desc LIMIT 1 OFFSET 0");    
         $rawData=[];
         foreach ($results as $row) {
@@ -646,6 +637,9 @@ function buildHistoricContext($actor, $lastNelements = -10,$sqlfilter="") {
     $playerEscaped=$db->escape($GLOBALS["PLAYER_NAME"]);
 
     // this select had when type=death twice
+    if (empty($actorEscaped))
+        $actorEscaped="%";
+
     $query="select  
     case 
       when type='infoaction' and a.data like '#%MEMORY%' then 'MEMORY'
@@ -675,7 +669,13 @@ function buildHistoricContext($actor, $lastNelements = -10,$sqlfilter="") {
     and type<>'updateprofile' and type<>'rechat' and type<>'setconf' and  type<>'status_msg' and type<>'user_input' and type<>'infonpc_close' and type<>'instruction' 
     and type<>'request' and type<>'playerinfo' and type<>'im_alive' 
     ".(($actorEscaped)?"  
-    and (people like '|%$actorEscaped%|' or people like '$actorEscaped' or type='info_timeforward') ":"")." 
+    and (
+     people like '%|$actorEscaped|%' 
+     or people like '$actorEscaped' 
+     or people like '%|$actorEscaped (busy)|%'
+     OR people LIKE '%|$actorEscaped (hostile)|%' 
+     or type='info_timeforward' )
+    ":"")." 
     and type<>'funccall' $removeBooks and type<>'togglemodel' $sqlfilter ".
     ((false)?" and gamets>".($currentGameTs-(60*60*60*60)):"").
     " order by gamets desc, ts desc, rowid desc LIMIT $nRecordsLimit OFFSET 0";  
@@ -1424,7 +1424,9 @@ function DataSpeechJournal($topic,$limit=50)
     $lastDialogFull = [];
     $tn=$db->escape($topic);
     $results = $db->fetchAll("SElECT  speaker,speech,location,listener,topic as quest, convert_gamets2skyrim_date(gamets) AS sk_date, gamets FROM speech
-      where (speaker like '%$tn%' or  listener like '%$tn%' or location like '%$tn%' or  companions like '%$tn%' or  companions like '%$tn%') 
+      where (speaker like '%$tn%' or  listener like '%$tn%' or location like '%$tn%' or  
+      companions like '%|$tn|%' or  companions like '%$tn%' OR companions LIKE '%|$tn (busy)|%' 
+      OR companions LIKE '%|$tn (hostile)|%' ) 
       and listener<>'unknown' 
       order by rowid desc");
     if (!$results) {
@@ -1555,7 +1557,7 @@ function DataGetCurrentTask()
     $hourThreshold= DataLastKnownGameTS()-(2/ 0.0000024);
 
     $results = $db->fetchAll("SElECT  distinct description as description,gamets FROM currentmission where sess='ephemeral' and gamets>$hourThreshold order by gamets desc");
-    Logger:debug("SElECT  distinct description as description,gamets FROM currentmission where sess='ephemeral' and gamets>$hourThreshold order by gamets desc");
+    //Logger:debug("SElECT  distinct description as description,gamets FROM currentmission where sess='ephemeral' and gamets>$hourThreshold order by gamets desc");
 
     if (!empty($results)) {
         // couldnt find usages of ephemeral quests so didnt modify this apart from new lines
@@ -2093,7 +2095,7 @@ function FindClosestNPCName($actorName)
 
     $lastLoc = $db->fetchAll("SELECT a.data as people FROM eventlog a WHERE type IN ('infonpc_close') ORDER BY gamets DESC, ts DESC LIMIT 1 OFFSET 0");
     if (!is_array($lastLoc) || sizeof($lastLoc) == 0) {
-        error_log("Note: no FindClosestNPCName data");
+        Logger::info("Note: no FindClosestNPCName data");
         return "";
     }
 
@@ -2108,7 +2110,7 @@ function FindClosestNPCName($actorName)
     }
 
     if (empty($beingsArrayCleaned)) {
-        error_log("Note: empty(beingsArrayCleaned)");
+        Logger::info("Note: empty(beingsArrayCleaned)");
         return $actorName;
     }
 
@@ -2118,7 +2120,7 @@ function FindClosestNPCName($actorName)
 
     foreach ($beingsArrayCleaned as $name) {
         $lev = levenshtein($actorName, $name);
-        error_log("Comparing: $actorName, $name");
+        Logger::info("Comparing: $actorName, $name");
 
         if ($lev == 0) {
             return $name; // Exact match
@@ -2153,7 +2155,7 @@ function DirectConversationsWith($actor, $speaker="")
     } else {
         $i_res = intval($lastLoc[0]["n"]);
     }
-    //error_log(" --- dbg DirectConversationsWith: |{$i_res}| {$speakerprmt} - {$listenerprmt} ");
+    //Logger::info(" --- dbg DirectConversationsWith: |{$i_res}| {$speakerprmt} - {$listenerprmt} ");
     return $i_res;
     
 }
@@ -2815,38 +2817,46 @@ function call_llm() {
 
 
                         } else if ($actionParts2[0]=="GiveItemTo") {
-                            // Lets polish the parammeters
-                            $localtarget=$actionParts2[1];
-                            $mang1=explode(",",$localtarget);
-                            $mang2=explode(" and ",$mang1[0]);
-                            $mang3=explode("(",$mang2[0]);
-                            $mang4=FindClosestActorName($mang3[0]);
-                            Logger::debug("[ACTION POSTFILTER GiveItemTo] $localtarget => {$mang3[0]} => $mang4");
+                            // Check if parameter is JSON (multi-param) - skip post-filtering for JSON
+                            if (isset($actionParts2[1]) && substr(trim($actionParts2[1]), 0, 1) === '{') {
+                                Logger::debug("[ACTION POSTFILTER GiveItemTo] JSON parameter detected, skipping post-filter");
+                                // Keep the action as-is for JSON parameters
+                            } else {
+                                // Legacy: polish the parameters for single-param format
+                                $localtarget=$actionParts2[1];
+                                $mang1=explode(",",$localtarget);
+                                $mang2=explode(" and ",$mang1[0]);
+                                $mang3=explode("(",$mang2[0]);
+                                $mang4=FindClosestActorName($mang3[0]);
+                                Logger::debug("[ACTION POSTFILTER GiveItemTo] $localtarget => {$mang3[0]} => $mang4");
 
-                            if ($mang4)
-                                $actions[$n]="{$actionParts[0]}|{$actionParts[1]}|GiveItemTo@{$mang4}";
-                            else
-                                $actions[$n]="{$actionParts[0]}|{$actionParts[1]}|GiveItemTo@{$mang3[0]}";
-
-                            Logger::debug("[ACTION POSTFILTER GiveItemTo] $localtarget => {$mang3[0]} => $destination");
-
+                                if ($mang4)
+                                    $actions[$n]="{$actionParts[0]}|{$actionParts[1]}|GiveItemTo@{$mang4}";
+                                else
+                                    $actions[$n]="{$actionParts[0]}|{$actionParts[1]}|GiveItemTo@{$mang3[0]}";
+                            }
+                            //Logger::debug("[ACTION POSTFILTER GiveItemTo] $localtarget => {$mang3[0]} => $destination");
 
                         } else if ($actionParts2[0]=="GiveGoldTo") {
-                            // Lets polish the parammeters
-                            $localtarget=$actionParts2[1];
-                            $mang1=explode(",",$localtarget);
-                            $mang2=explode(" and ",$mang1[0]);
-                            $mang3=explode("(",$mang2[0]);
-                            $mang4=FindClosestActorName($mang3[0]);
-                            Logger::debug("[ACTION POSTFILTER GiveGoldTo] $localtarget => {$mang3[0]} => $$mang4");
+                            // Check if parameter is JSON (multi-param) - skip post-filtering for JSON
+                            if (isset($actionParts2[1]) && substr(trim($actionParts2[1]), 0, 1) === '{') {
+                                Logger::debug("[ACTION POSTFILTER GiveGoldTo] JSON parameter detected, skipping post-filter");
+                                // Keep the action as-is for JSON parameters
+                            } else {
+                                // Legacy: polish the parameters for single-param format
+                                $localtarget=$actionParts2[1];
+                                $mang1=explode(",",$localtarget);
+                                $mang2=explode(" and ",$mang1[0]);
+                                $mang3=explode("(",$mang2[0]);
+                                $mang4=FindClosestActorName($mang3[0]);
+                                Logger::debug("[ACTION POSTFILTER GiveGoldTo] $localtarget => {$mang3[0]} => $$mang4");
 
-                            if ($mang4)
-                                $actions[$n]="{$actionParts[0]}|{$actionParts[1]}|GiveGoldTo@{$mang4}";
-                            else
-                                $actions[$n]="{$actionParts[0]}|{$actionParts[1]}|GiveGoldTo@{$mang3[0]}";
-
-                            Logger::debug("[ACTION POSTFILTER GiveGoldTo] $localtarget => {$mang3[0]} => $destination");
-
+                                if ($mang4)
+                                    $actions[$n]="{$actionParts[0]}|{$actionParts[1]}|GiveGoldTo@{$mang4}";
+                                else
+                                    $actions[$n]="{$actionParts[0]}|{$actionParts[1]}|GiveGoldTo@{$mang3[0]}";
+                            }
+                            //Logger::debug("[ACTION POSTFILTER GiveGoldTo] $localtarget => {$mang3[0]} => $destination");
 
                         }  else if ($actionParts2[0]=="TradeItems") {
                             // Lets polish the parammeters
@@ -2986,7 +2996,7 @@ function call_llm() {
                                 $qtyrecord=$GLOBALS["db"]->fetchOne("SELECT speech,(regexp_matches(speech, '\d+'))[1]::int AS quantity FROM public.speech 
                                 WHERE listener = '$localNpc' OR speaker = '$localNpc' order by rowid desc LIMIT 100");
                                 if (isset($qtyrecord["quantity"])) {
-                                    $qty=$qtyrecord["quantity"];
+                                    $qty=trim($qtyrecord["quantity"]);
                                     Logger::debug("[ACTION POSTFILTER TakeGoldFromPlayer] quantity found $qty");
                                     $actions[$n]="{$actionParts[0]}|{$actionParts[1]}|TakeGoldFromPlayer@$qty";
                                 } else
@@ -3042,7 +3052,7 @@ function call_llm() {
             
             file_put_contents(__DIR__."/../log/output_to_plugin.log",implode("\r\n", $actions).PHP_EOL, FILE_APPEND | LOCK_EX);
             // Enforce flush output
-            @ob_end_flush();
+            if (ob_get_level()) @ob_end_flush();
             @flush();
 
         }
@@ -3191,6 +3201,17 @@ function GetLastInteraction($s_player_name, $s_npc_name) {
 	return $i_res;
 }
 
+function GetLastSpeechTs() {
+    global $db;
+    $i_res=0;
+	$db_rec = $db->fetchAll("SELECT gamets as gamets FROM speech 
+        WHERE (gamets > 0) ORDER BY gamets DESC LIMIT 1 ");
+	if (is_array($db_rec) && sizeof($db_rec)>0) {
+		$i_res = intval($db_rec[0]['gamets']);
+	}
+	
+	return $i_res;
+}
 
 function GetFirstInteraction($s_player_name, $s_npc_name) {
     global $db;
@@ -3774,7 +3795,8 @@ function buildDynamicBiography(array $FOLLOWER_CONF) {
     
     foreach ($herikaFields as $fieldName => $label) {
         if (isset($FOLLOWER_CONF[$fieldName]) && !empty(trim($FOLLOWER_CONF[$fieldName]))) {
-            $dynamicBio .= "\n\n#$label\n" . trim($FOLLOWER_CONF[$fieldName]);
+            $xmlLabel=strtr(strtolower($label),[" "=>"_"]);
+            $dynamicBio .= "\n<$xmlLabel>\n" . trim($FOLLOWER_CONF[$fieldName])."\n</$xmlLabel>";
         }
     }
     
@@ -3826,22 +3848,26 @@ function requireFilesRecursively($dir,$name) {
     
     global $gameRequest;
 
-    $files = scandir($dir);
-    foreach ($files as $file) {
-        if ($file === '.' || $file === '..') {
-            continue;
+    try {
+        $files = scandir($dir);
+        foreach ($files as $file) {
+            if ($file === '.' || $file === '..') {
+                continue;
+            }
+
+            $path = $dir . '/' . $file;
+
+            if (is_dir($path)) {
+                requireFilesRecursively($path,$name);
+            } elseif (is_file($path) && $file === $name) {
+                //Logger::trace("requireFilesRecursively: {$path} ");
+                require_once($path);
+            } 
         }
-
-        $path = $dir . '/' . $file;
-
-        if (is_dir($path)) {
-            requireFilesRecursively($path,$name);
-        } elseif (is_file($path) && $file === $name) {
-            require_once($path);
-        } 
+    } catch (Exception $e) {
+        Logger::error("requireFilesRecursively: " . $e->getMessage());
     }
 }
-
 
 /**
  * Parses a PHP file and extracts variable assignments into an associative array.
@@ -4226,21 +4252,21 @@ function safe_update_php_variable($filePath, $varName, $value) {
  */
 function getBaseDataForNpcFromLog($npcname) {
     if (empty($npcname)) {
-        Logger::warn("getBaseDataForNpcFromLog: NPC name is empty.");
+        Logger::info("getBaseDataForNpcFromLog: NPC name is empty.");
         return null;
     }
 
     $npcNameEscaped = $GLOBALS["db"]->escape($npcname);
-    $result = $GLOBALS["db"]->fetchOne("SELECT data FROM eventlog WHERE type='addnpc' AND data LIKE '$npcNameEscaped%' ORDER BY rowid DESC LIMIT 1");
+    $result = $GLOBALS["db"]->fetchOne("SELECT data FROM eventlog WHERE type='addnpc' AND data ILIKE '$npcNameEscaped%' ORDER BY rowid DESC LIMIT 1");
 
     if (!$result || !isset($result["data"])) {
-        Logger::warn("getBaseDataForNpcFromLog: No data found for NPC '$npcname'.");
+        Logger::info("getBaseDataForNpcFromLog: No data found for NPC '$npcname'.");
         return null;
     }
 
     $splitNameBase = explode("@", $result["data"]);
     if (count($splitNameBase) < 5) {
-        Logger::warn("getBaseDataForNpcFromLog: Insufficient data for NPC '$npcname'. Data: " . print_r($result["data"], true));
+        Logger::info("getBaseDataForNpcFromLog: Insufficient data for NPC '$npcname'. Data: " . print_r($result["data"], true));
         return null;
     }
 
