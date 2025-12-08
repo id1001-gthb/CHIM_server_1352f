@@ -72,6 +72,7 @@ ALTER TABLE speech ADD COLUMN IF NOT EXISTS emotion_intensity TEXT;
 
 DROP FUNCTION IF EXISTS public.sql_exec2(text) CASCADE;
 
+
 CREATE FUNCTION public.sql_exec2(text) returns text 
     language plpgsql volatile 
     AS 
@@ -87,5 +88,3 @@ SELECT public.sql_exec2('ALTER TABLE '||quote_ident(pgn.nspname)||'.'||quote_ide
         LEFT JOIN pg_catalog.pg_namespace pgn ON pgn.oid = pgc.relnamespace
         WHERE (pgc.relkind ='r')
         AND (pgn.nspname='public');
-
-

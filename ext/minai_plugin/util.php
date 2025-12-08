@@ -1282,6 +1282,41 @@ LIMIT 128 ";
 	}
 	return $i_res;
 }    
+
+function getAllContentOfLocation($loc)
+{
+    $scandir = scandir($loc);
+
+    $scandir = array_filter($scandir, function ($element) {
+        return !preg_match('/^\./', $element);
+    });
+
+
+    if (empty($scandir)) {
+        echo '<p style="color:red">        Empty Dir</p>';
+    }
+
+    foreach ($scandir as $file) {
+        $baseLink = $loc.DIRECTORY_SEPARATOR.$file;
+
+        echo '<ol>';
+        if (is_dir($baseLink)) {
+            echo '<p style="font-weight:bold;color:blue">'.$file.'</p>';
+            getAllContentOfLocation($baseLink);
+        } else {
+            echo $file.'';
+        }
+        echo '</ol>';
+    }
+}
+    
+function getFilesRecursively($pattern) {
+    yield from glob($pattern);
+    foreach (glob(dirname($pattern) . "/*", GLOB_ONLYDIR) as $dir) {
+        yield from rglob("$dir/" . basename($pattern));
+    }
+}
+
     
 function getChimExecMode() {
     /* Check modes

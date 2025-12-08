@@ -8,6 +8,47 @@ require_once(__DIR__.DIRECTORY_SEPARATOR."dungeonmaster.php");
 require_once(__DIR__.DIRECTORY_SEPARATOR."items.php");
 require_once(__DIR__.DIRECTORY_SEPARATOR."utils/narrator_utils.php");
 
+function check_executable_files($s_folder, $extensions_list='.php,.sh', $max_files=100000 ) {
+
+    $arr_res = [];
+    $ix = 0;
+
+    //s_folder = "/var/www/html/HerikaServer";
+    if(is_dir($s_folder)) {
+        $handle = opendir($s_folder);
+        while(($entry = readdir($handle)) !== false) {
+            $ix++;
+            if ($ix > $max_files)
+                continue;
+
+            if($entry == '.' || $entry == '..') {
+                continue;
+            }
+
+            $s_file = $s_folder . DIRECTORY_SEPARATOR . $entry;
+            if (!is_link($s_file)) {
+                if(is_dir($s_file)) {
+                    $arr_x = check_executable_files($s_file);
+                    if (isset($arr_x) && (count($arr_x)>0)) 
+                        $arr_res = array_merge($arr_res, $arr_x);
+                } else {
+                    if (file_exists($s_file)) {
+                        $arr_parts = pathinfo($s_file);
+                        $s_ext = $arr_parts['extension'] ?? '_|_';
+                        if (stripos($extensions_list,$s_ext) !== false) {
+                            if (!is_executable($s_file)) { // wrong
+                                $arr_res[] = $s_file;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        closedir($handle);
+    } else error_log("ERROR: not a folder {$s_folder} ".__FILE__." ".__LINE__);
+    return $arr_res;
+}
+
 function ProcessIntegrations() {
     if (isset($GLOBALS["gameRequest"])) {
 
@@ -64,7 +105,9 @@ function ProcessIntegrations() {
             importXPersonalities();
             importScenesDescriptions();
             
-            //$EXECUTION_MODE = getConfOptionValue("chim_mode"); 
+            
+            $exec_mode = getConfOptionValue("chim_mode");
+            error_log("Current CHIM execution mode={$exec_mode} ");
             setConfOption("chim_mode","");
             //deleteConfOption("_minai_RADIANT//lastInput");
             deleteConfOption("current_oghma_topic");
@@ -74,15 +117,23 @@ function ProcessIntegrations() {
             //deleteConfOption("");
 
             //m_init.sh
+            /*
             $startScript = "/var/www/html/HerikaServer/ext/minai_plugin/m_init.sh";
-            if (file_exists($startScript)) {
+            if (file_exists($startScript) && is_executable($startScript) ) {
                 $output = [];
                 $retval = null;
                 $res = exec($startScript, $output, $retval);
                 Logger::debug("exec {$startScript} return code={$retval} output: " . print_r($output,true));
             } else 
-                Logger::warn("file not found: {$startScript} ");       
-                
+                Logger::warn("file not found or not executabe: {$startScript} ");
+            */
+            // check file attributes     
+            $s_main_folder = "/var/www/html/HerikaServer";
+            $arr_files = check_executable_files($s_main_folder);
+            if (isset($arr_files) && (count($arr_files)>0)) {
+                error_log("ERROR: there are files with wrong attributes in {$s_main_folder} folder! You need to fix file permissions, otherwise this application will not work. \n" . print_r($arr_files,true));
+            } else error_log("OK: files attributes checked in {$s_main_folder} folder! ");
+
             $MUST_DIE=true;
 
         } else if ($s_type == "storecontext") {
