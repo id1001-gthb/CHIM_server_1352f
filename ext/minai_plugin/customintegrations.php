@@ -112,8 +112,8 @@ function ProcessIntegrations() {
             //deleteConfOption("_minai_RADIANT//lastInput");
             deleteConfOption("current_oghma_topic");
             setConfOption("debug_data_raw","");
-            //deleteConfOption("COMBAT_BARK_LAST_TIMESTAMP");
-            //deleteConfOption("NARRATOR_WELCOME_TIMESTAMP");
+            //deleteConfOption("COMBAT_BARK_LAST_ TIME STAMP");
+            //deleteConfOption("NARRATOR_ WEL COME_ TIME STAMP");
             //deleteConfOption("");
 
             //m_init.sh
