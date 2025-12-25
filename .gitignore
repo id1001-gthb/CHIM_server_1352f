@@ -5,7 +5,9 @@
 !/ext/herika_heal
 !/ext/generic_installer.php
 /log
+!/log/.placeholder
 /soundcache
+!/soundcache/.placeholder
 data/CurrentModel_*.json
 conf/character_map.json
 conf/conf.php
@@ -14,6 +16,7 @@ conf/conf_*.php
 !conf/conf_schema.php
 /data/voices/*
 !/data/voices/TheNarrator.wav
+!/data/voices/.placeholder
 lib/chat_helper_functions_custom_debug.php
 ui/index_custom.php
 ui/tmpl/navbar_custom.php
@@ -26,3 +29,9 @@ ui/tmpl/navbar_custom.php
 *.xml_???
 *.json_???
 *.sh_???
+
+/ext/minai_plugin/sceneDescriptionsDBImport/imported.txt
+/ext/minai_plugin/sceneDescriptionsDBImport/imported.txt~
+/ext/minai_plugin/xPersonalitiesDBImport/imported.txt
+/ext/minai_plugin/xPersonalitiesDBImport/imported.txt~
+/ext/minai_plugin/config.php
