@@ -41,6 +41,8 @@ class openrouterjson
     private $_output_buffer; 
     private $_timeout;
     private $_is_grok;
+    private $_lastStreamedObject;
+    
     
     public function __construct()
     {
@@ -145,7 +147,7 @@ class openrouterjson
             //openai/gpt-5-nano ???
             if ($i_pos === false) { //openai/gpt-5
                 if (($s_model == "openai/gpt-5")) {
-                    $i_pos = 1;
+                    $i_pos = 9;
                 }
             }
             $b_res = (!($i_pos === false));
@@ -183,7 +185,7 @@ class openrouterjson
             }
             $b_res = (!($i_pos === false));
         }
-        //error_log("[OPENROUTER] is openai $s_model / $i_pos ". ($b_res ? "Y" : "N") ); //debug
+        //Logger::debug("[OPENROUTER] is openai $s_model / $i_pos ". ($b_res ? "Y" : "N") ); //debug
         return $b_res;
     }
    
@@ -286,7 +288,7 @@ class openrouterjson
         }
 
         if (isset($GLOBALS["HERIKA_SPEECHSTYLE"]) && (!empty($GLOBALS["HERIKA_SPEECHSTYLE"]))) {
-            $speechReinforcement="Use #SpeechStyle.";
+            $speechReinforcement="Use <speech_style>#SpeechStyle for reference.";
         } else
             $speechReinforcement="";
 
@@ -375,7 +377,7 @@ class openrouterjson
                     
                 } else if ($element["role"]=="assistant") {
                     $assistantAppearedInhistory=true;
-                    $dialogueTarget=extractDialogueTarget($element["content"]); // moved here to be available in tool_calls 
+                    $dialogueTarget=extractDialogueTarget($element["content"]) ?? "none"; // moved here to be available in tool_calls 
                     if (isset($element["tool_calls"])) {
                         $pb["system"].="{$GLOBALS["HERIKA_NAME"]} issued ACTION {$element["tool_calls"][0]["function"]["name"]}";
                         $lastAction="{$GLOBALS["HERIKA_NAME"]} issued ACTION {$element["tool_calls"][0]["function"]["name"]} {$element["tool_calls"][0]["function"]["arguments"]}";
@@ -503,7 +505,7 @@ class openrouterjson
         
         $contextData=$contextDataCopy;
         
-        /*if (!$assistantAppearedInhistory) { // is this still needed?
+        /* if (!$assistantAppearedInhistory) { // is this still needed?
             
             if (isset($GLOBALS["CHIM_NO_EXAMPLES"]) && $GLOBALS["CHIM_NO_EXAMPLES"]) {
                 $contextExamples=[];
@@ -600,25 +602,39 @@ class openrouterjson
                 $data["response_format"]=["type"=>"json_object"];
             }
         }
-            
+        
+        // Add Google safety settings if block_none is enabled in metadata (for Google models via OpenRouter)
+        if (isset($GLOBALS["CONNECTOR"][$this->name]["block_none"]) && $GLOBALS["CONNECTOR"][$this->name]["block_none"]) {
+            // Only add safety settings if this is a Google/Gemini model
+            if (preg_match('/google|gemini/i', $this->_model)) {
+                $data["safety_settings"] = [
+                    ["category" => "HARM_CATEGORY_HARASSMENT", "threshold" => "BLOCK_NONE"],
+                    ["category" => "HARM_CATEGORY_HATE_SPEECH", "threshold" => "BLOCK_NONE"],
+                    ["category" => "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold" => "BLOCK_NONE"],
+                    ["category" => "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold" => "BLOCK_NONE"]
+                ];
+            }
+        }
+        
         if ($this->_is_reasoning) { // add parameter to hide <think> content
+
+            if (!(stripos($this->_model, "x-ai/grok-4.1-fast") === false)) { //x-ai/grok-4.1-fast
+                $data["reasoning"] = array ('exclude' => true, 'enabled' => false); // disable reasoning by default, if _disable_reasoning = false, will be overwritten below
+            }
+                    
             //$data["reasoning"] = array ('exclude' => true, 'enabled' => true); // exclude = true - Use reasoning but don't include it in the response; enabled = false - do not use reasoning
             if ($this->_disable_reasoning)
-                $data["reasoning"] = array ('exclude' => true, 'enabled' => false); // exclude = true - Use reasoning but don't include it in the response; enabled = false - do not use reasoning
+                $data["reasoning"] = array ('exclude' => true, 'enabled' => false); // default value, CoT removed, resoning disabled, fast response
             else
-                $data["reasoning"] = array ('exclude' => true, 'enabled' => true); 
+                $data["reasoning"] = array ('exclude' => true, 'enabled' => true); // CoT removed, resoning enabled, slow
             
-            
-            //error_log("[OPENROUTER]  Excluding reasoning");
+            //Logger::debug("[OPENROUTER]  Excluding reasoning");
             //$data["reasoning"] = array ('exclude' => true, 'effort' => 'low'); // reduce reasoning tokens - OpenAI
             //$data["reasoning"] = array ('exclude' => true, 'max_tokens' => 64 ); // reduce reasoning tokens - Anthropic 
             //Logger::debug("reasoning " . $this->_model);
             if (!(stripos($this->_model, "qwen3-") === false)) {//qwen3
                 $data["enable_thinking"] = false;
             }            
-            //if (!(stripos($this->_model, "x-ai/grok-4.1-fast") === false)) { //x-ai/grok-4.1-fast
-            //    $data["reasoning"] = array ('exclude' => true, 'enabled' => false);
-            //}            
         }
         
         if ($this->_is_mistral_ai) { // Mistral AI API does not support penalty params
@@ -628,7 +644,7 @@ class openrouterjson
             unset($data["stop"]); 
         } elseif ($this->_is_openai) {
             // OpenAI models use max_completion_tokens
-            //error_log("[OPENROUTER] Excluding reasoning this->_is_openai");
+            //Logger::debug("[OPENROUTER] Excluding reasoning this->_is_openai");
             $data['max_completion_tokens'] = $MAX_TOKENS;
             unset($data['max_tokens']); 
             if ($this->_is_reasoning) {
@@ -901,7 +917,6 @@ class openrouterjson
             }
 
             $totalBuffer.=$data["choices"][0]["delta"]["content"];
-
 
         }
         

@@ -680,7 +680,6 @@ class openrouterjsonanthropic
             $reasoning["max_tokens"] = intval($thinkingTokens);
         }
 
-
         // Payload Construction
         $data = array(
             'model' => $model,
@@ -700,7 +699,19 @@ class openrouterjsonanthropic
                 "ttl" => "1h"  # Cache for 5 minutes, or 1h for 1 hour.
             ]
         );
-
+        
+        if ($provider_caching === "Gemini") { // Only add safety settings if this is a Google/Gemini model
+            // Add Google safety settings if block_none is enabled in metadata (for Google models via OpenRouter)
+            if (isset($GLOBALS["CONNECTOR"][$this->name]["block_none"]) && $GLOBALS["CONNECTOR"][$this->name]["block_none"]) {
+                $data["safety_settings"] = [
+                    ["category" => "HARM_CATEGORY_HARASSMENT", "threshold" => "BLOCK_NONE"],
+                    ["category" => "HARM_CATEGORY_HATE_SPEECH", "threshold" => "BLOCK_NONE"],
+                    ["category" => "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold" => "BLOCK_NONE"],
+                    ["category" => "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold" => "BLOCK_NONE"]
+                ];
+            }
+        }            
+        
         // Prepare tool definition for JSON mode
         $tools = array();
         if (isset($GLOBALS["CONNECTOR"][$this->name]["tools"]) && is_array($GLOBALS["CONNECTOR"][$this->name]["tools"]) && !empty($GLOBALS["CONNECTOR"][$this->name]["tools"])) {

@@ -155,6 +155,7 @@ $CONNECTOR["openrouterjson"]["API_KEY"]=""; //API key.
 $CONNECTOR["openrouterjson"]["xreferer"]="https://www.nexusmods.com/skyrimspecialedition/mods/89931"; //Stub needed header.
 $CONNECTOR["openrouterjson"]["xtitle"]="CHIM"; //Stub needed header.
 $CONNECTOR["openrouterjson"]["json_schema"]=false; //Enable OpenRouter JSON schema.
+$CONNECTOR["openrouterjson"]["block_none"]=true; //block_none
 // Utility buttons for autofilling parameters
 $CONNECTOR["openrouterjson"]["get_parms1"] = false; // Utility button for low randomness parameters
 $CONNECTOR["openrouterjson"]["get_parms5"] = false; // Utility button for medium randomness parameters  
@@ -181,6 +182,7 @@ $CONNECTOR["openrouterjsonanthropic"]["API_KEY"]=""; //API key.
 $CONNECTOR["openrouterjsonanthropic"]["xreferer"]="https://www.nexusmods.com/skyrimspecialedition/mods/89931"; //Stub needed header.
 $CONNECTOR["openrouterjsonanthropic"]["xtitle"]="CHIM"; //Stub needed header.
 $CONNECTOR["openrouterjsonanthropic"]["json_schema"]=false; //Enable OpenRouter JSON schema.
+$CONNECTOR["openrouterjsonanthropic"]["block_none"]=true; //block_none
 //openrouteranthropic (Legacy)
 $CONNECTOR["openrouteranthropic"]["url"]="https://openrouter.ai/api/v1/chat/completions"; //API endpoint.
 $CONNECTOR["openrouteranthropic"]["model"]="meta-llama/llama-3.1-8b-instruct"; //LLM model.
@@ -225,6 +227,7 @@ $CONNECTOR["openrouter"]["MAX_TOKENS_MEMORY"]="1024"; //Maximum tokens to genera
 $CONNECTOR["openrouter"]["API_KEY"]=""; //API key.
 $CONNECTOR["openrouter"]["xreferer"]="https://www.nexusmods.com/skyrimspecialedition/mods/89931"; //Stub needed header.
 $CONNECTOR["openrouter"]["xtitle"]="CHIM"; //Stub needed header.
+$CONNECTOR["openrouter"]["block_none"]=true; //block_none
 // Utility buttons for autofilling parameters
 $CONNECTOR["openrouter"]["get_parms1"] = false; // Utility button for low randomness parameters
 $CONNECTOR["openrouter"]["get_parms5"] = false; // Utility button for medium randomness parameters  

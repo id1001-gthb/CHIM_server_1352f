@@ -292,6 +292,18 @@ class openrouter
             $data["stop"]=$GLOBALS["CONNECTOR"][$this->name]["stop"];
         }
 
+        // Add Google safety settings if block_none is enabled in metadata (for Google models via OpenRouter)
+        if (isset($GLOBALS["CONNECTOR"][$this->name]["block_none"]) && $GLOBALS["CONNECTOR"][$this->name]["block_none"]) {
+            // Only add safety settings if this is a Google/Gemini model
+            if (preg_match('/google|gemini/i', $this->_model)) {
+                $data["safety_settings"] = [
+                    ["category" => "HARM_CATEGORY_HARASSMENT", "threshold" => "BLOCK_NONE"],
+                    ["category" => "HARM_CATEGORY_HATE_SPEECH", "threshold" => "BLOCK_NONE"],
+                    ["category" => "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold" => "BLOCK_NONE"],
+                    ["category" => "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold" => "BLOCK_NONE"]
+                ];
+            }
+        }
 
         if ($this->_is_reasoning) { // add parameter to hide <think> content
             $data["reasoning"] = array ('exclude' => true, 'enabled' => false); // exclude = true - Use reasoning but don't include it in the response; enabled = false - do not use reasoning
