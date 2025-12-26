@@ -159,6 +159,47 @@ $CONNECTOR["openrouterjson"]["json_schema"]=false; //Enable OpenRouter JSON sche
 $CONNECTOR["openrouterjson"]["get_parms1"] = false; // Utility button for low randomness parameters
 $CONNECTOR["openrouterjson"]["get_parms5"] = false; // Utility button for medium randomness parameters  
 $CONNECTOR["openrouterjson"]["get_parms9"] = false; // Utility button for high randomness parameters
+
+//openrouterjsonanthropic JSON
+$CONNECTOR["openrouterjsonanthropic"]["url"]="https://openrouter.ai/api/v1/chat/completions"; //API endpoint.
+$CONNECTOR["openrouterjsonanthropic"]["model"]="meta-llama/llama-3.3-70b-instruct"; //LLM model.
+$CONNECTOR["openrouterjsonanthropic"]["reasoning_model"]=false; //This is a reasoning model, could output CoT.
+$CONNECTOR["openrouterjsonanthropic"]["PROVIDER"]=""; //use only this list of providers from OpenRouter
+$CONNECTOR["openrouterjsonanthropic"]["max_tokens"]='1024'; //Maximum tokens to generate.
+$CONNECTOR["openrouterjsonanthropic"]["temperature"]=0.6; //LLM parameter temperature.
+$CONNECTOR["openrouterjsonanthropic"]["presence_penalty"]=0; //LLM parameter presence_penalty.
+$CONNECTOR["openrouterjsonanthropic"]["frequency_penalty"]=0; //LLM parameter frequency_penalty.
+$CONNECTOR["openrouterjsonanthropic"]["repetition_penalty"]=1;	//LLM parameter repetition_penalty.
+$CONNECTOR["openrouterjsonanthropic"]["top_p"]=1; //LLM parameter top_p.
+$CONNECTOR["openrouterjsonanthropic"]["min_p"]=0; //LLM parameter min_p.
+$CONNECTOR["openrouterjsonanthropic"]["top_k"]=0; //LLM parameter top_k.
+$CONNECTOR["openrouterjsonanthropic"]["top_a"]=0; //LLM parameter top_a.
+$CONNECTOR["openrouterjsonanthropic"]["ENFORCE_JSON"]=true; //Attempts to enforce JSON. Only valid for some models.
+$CONNECTOR["openrouterjsonanthropic"]["PREFILL_JSON"]=false; //Prefill JSON, Only valid for some models.
+$CONNECTOR["openrouterjsonanthropic"]["MAX_TOKENS_MEMORY"]='1024'; //Maximum tokens to generate when summarizing.
+$CONNECTOR["openrouterjsonanthropic"]["API_KEY"]=""; //API key.
+$CONNECTOR["openrouterjsonanthropic"]["xreferer"]="https://www.nexusmods.com/skyrimspecialedition/mods/89931"; //Stub needed header.
+$CONNECTOR["openrouterjsonanthropic"]["xtitle"]="CHIM"; //Stub needed header.
+$CONNECTOR["openrouterjsonanthropic"]["json_schema"]=false; //Enable OpenRouter JSON schema.
+//openrouteranthropic (Legacy)
+$CONNECTOR["openrouteranthropic"]["url"]="https://openrouter.ai/api/v1/chat/completions"; //API endpoint.
+$CONNECTOR["openrouteranthropic"]["model"]="meta-llama/llama-3.1-8b-instruct"; //LLM model.
+$CONNECTOR["openrouteranthropic"]["reasoning_model"]=false; //This is a reasoning model, could output CoT.
+$CONNECTOR["openrouteranthropic"]["PROVIDER"]=""; //select a list of providers from OpenRouter
+$CONNECTOR["openrouteranthropic"]["max_tokens"]=1024; //Maximum tokens to generate.
+$CONNECTOR["openrouteranthropic"]["temperature"]=0.6; //LLM parameter temperature.
+$CONNECTOR["openrouteranthropic"]["presence_penalty"]=0;	//LLM parameter presence_penalty.
+$CONNECTOR["openrouteranthropic"]["frequency_penalty"]=0; //LLM parameter frequency_penalty.
+$CONNECTOR["openrouteranthropic"]["repetition_penalty"]=1;	//LLM parameter repetition_penalty.
+$CONNECTOR["openrouteranthropic"]["top_p"]=1; //LLM parameter top_p.
+$CONNECTOR["openrouteranthropic"]["min_p"]=0; //LLM parameter min_p.
+$CONNECTOR["openrouteranthropic"]["top_k"]=0; //LLM parameter top_k.
+$CONNECTOR["openrouteranthropic"]["top_a"]=0; //LLM parameter top_a.
+$CONNECTOR["openrouteranthropic"]["MAX_TOKENS_MEMORY"]="1024"; //Maximum tokens to generate when summarizing.
+$CONNECTOR["openrouteranthropic"]["API_KEY"]=""; //API key.
+$CONNECTOR["openrouteranthropic"]["xreferer"]="https://www.nexusmods.com/skyrimspecialedition/mods/89931"; //Stub needed header.
+$CONNECTOR["openrouteranthropic"]["xtitle"]="CHIM"; //Stub needed header.
+
 //OpenRouter (Legacy)
 $CONNECTOR["openrouter"]["url"]="https://openrouter.ai/api/v1/chat/completions"; //API endpoint.
 $CONNECTOR["openrouter"]["model"]="meta-llama/llama-3.1-8b-instruct"; //LLM model.
@@ -188,6 +229,8 @@ $CONNECTOR["openrouter"]["xtitle"]="CHIM"; //Stub needed header.
 $CONNECTOR["openrouter"]["get_parms1"] = false; // Utility button for low randomness parameters
 $CONNECTOR["openrouter"]["get_parms5"] = false; // Utility button for medium randomness parameters  
 $CONNECTOR["openrouter"]["get_parms9"] = false; // Utility button for high randomness parameters
+
+
 //OpenAI JSON
 $CONNECTOR["openaijson"]["url"]="https://api.openai.com/v1/chat/completions"; //API endpoint.
 $CONNECTOR["openaijson"]["model"]='gpt-4o-mini'; //LLM model.
