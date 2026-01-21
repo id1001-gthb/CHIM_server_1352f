@@ -418,7 +418,7 @@ class sql
             $checkResult = pg_query_params(self::$link, $checkQuery, $whereParams);
     
             if (!$checkResult) {
-                throw new Exception("SQL: upsertRowTrx failed {$checkQuery} " . this->GetLastError() . $this->extract_caller() );
+                throw new Exception("SQL: upsertRowTrx failed {$checkQuery} " . $this->GetLastError() . $this->extract_caller() );
             }
     
             if (pg_num_rows($checkResult) > 0) {
@@ -463,7 +463,7 @@ class sql
             // Execute the query
             $result = pg_query_params(self::$link, $query, $params);
             if (!$result) {
-                throw new Exception("SQL: upsertRowTrx failed {$query} " . this->GetLastError() . $this->extract_caller() );
+                throw new Exception("SQL: upsertRowTrx failed {$query} " . $this->GetLastError() . $this->extract_caller() );
             }
     
             // Commit transaction
@@ -508,7 +508,7 @@ class sql
         $result = pg_query(self::$link, $sqlquery);
     
         if (!$result) {
-            Logger::error("SQL: upsertRowOnConflict failed {$sqlquery} " . this->GetLastError() . $this->extract_caller() );
+            Logger::error("SQL: upsertRowOnConflict failed {$sqlquery} " . $this->GetLastError() . $this->extract_caller() );
             return false; // Indicate failure
         }
     
